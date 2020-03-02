@@ -1,8 +1,0 @@
-10 // 10 x 10 grid
-obstruction  2 2
-obstruction  2 4
-obstruction  5 5
-obstruction  2 7
-net 1 0 4 4
-net 3 3 8 9
-net 0 7 6 8
