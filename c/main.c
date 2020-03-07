@@ -1,6 +1,7 @@
 #define MAX_TRY_TIME 20
 
 #define DEBUG 1
+#define DEBUG_ROUTER_WAVE 1
 
 #define SAVE_SILENT 1 //Do not pop up the result
 #define SAVE_INTERRESULT 1 //Save intermediate result
@@ -12,10 +13,10 @@
 #include <time.h>
 
 #include "map.c"
-#include "net.c"
 #include "parser.c"
 
-mapdata_t router(Map, Net);
+void displayMap(Map);
+uint8_t router(Map, mapdata_t);
 
 int main(int argc, char* argv[]) {
 
@@ -40,28 +41,18 @@ int main(int argc, char* argv[]) {
 	printf("Reading netsfile: %s\n",argv[1]);
 
 	Map emptyMap = parser(argv[1]);	
-	printf("Map size = %llu * %llu\n", (unsigned long long int)emptyMap.width, (unsigned long long int)emptyMap.height);
 #if(DEBUG)
-	puts("Given map value:");
-	for (mapaddr_t i = 0; i < emptyMap.height; i++) {
-		for (mapaddr_t j = 0; j < emptyMap.width; j++) {
-			printf("%17llx",(unsigned long long int)getMapValueAt(emptyMap,j,i));
-		}
-		puts("");
-	}
-	puts("Given map type:");
-	for (mapaddr_t i = 0; i < emptyMap.height; i++) {
-		for (mapaddr_t j = 0; j < emptyMap.width; j++) {
-			printf("%17d",getMapSlotType(emptyMap,j,i));
-		}
-		puts("");
-	}
+	displayMap(emptyMap);
 #endif
-return 0;
 
 /*******************************************************************************
 3 - Router routine
 *******************************************************************************/
+	
+	Map workspaceMap = copyMap(emptyMap);
+	router(workspaceMap,1);
+	
+	
 /*	unsigned long int priorityNetIndex = 0; //The failed net in last design will be placed first
 	
 	unsigned long int bestResultNetCount = 0;
@@ -114,25 +105,135 @@ return 0;
 		
 		
 	}*/
+	
+	return 0;
 }
 
-mapdata_t router(Map map, Net net) {/*
-	unsigned long int newWaveLength = 1;
-	for (map_t i = 1;;i++) {
-		if (i == MAP_T_HALF) { //Distance exceed the limit
-			return i;
-		}
-		
-		if (i == 1) { //First does: start from the src
-			setMapSlotWave(map, net.srcX, net.srcY, 1);
-		}
-		
-		else {
-			for (unsigned long int x = 0; x < map.length; i++) {
-				for (unsigned long int y = 0)
+//Give the map, return 1 if net placed, return 0 if fail.
+uint8_t router(Map map, mapdata_t netID) {
+	//Find source and dest
+	mapdata_t srcX, srcY, destX, destY;
+	uint8_t srcFound = 0;
+	for (mapaddr_t y = 0; y < map.height; y++) {
+		for (mapaddr_t x = 0; x < map.width; x++) {
+			if ( getMapSlotType(map,x,y) == mapslot_net && getMapSlotValue(map,x,y) == netID ) {
+				if (!srcFound) { //Find the first point: src
+					srcX = x;
+					srcY = y;
+					srcFound = 1;
+				}
+				else {
+					destX = x;
+					destY = y;
+					x = map.width; //All requirements found, stop search
+					y = map.height;
+				}
 			}
 		}
-	}*/
+	}
+#if(DEBUG)
+	printf("--> SRC (%llu,%llu). DEST (%llu,%llu)\n",(unsigned long long int)srcX,(unsigned long long int)srcY,(unsigned long long int)destX,(unsigned long long int)destY);
+#endif
+	
+	//Wave
+	unsigned long long int placeWave;
+	do {
+		placeWave = 0; //How mush slots are placed in this iteration
+		Map newMap = copyMap(map); //New wave should be read in next iteration; therefore, we read from old map and write to new map
+		
+		for (mapaddr_t y = 0; y < map.height; y++) {
+			for (mapaddr_t x = 0; x < map.width; x++) {
+				if (getMapSlotType(map,x,y) == mapslot_free) { //For all free slot
+					
+					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}}; //Up, down, right, left
+					for (uint8_t i = 0; i < 4; i++) {
+						mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
+						if (sx >= 0 && sx < map.width && sy >= 0 && sy < map.height) { //Must in the map <-- sx=surroundingX
+							
+							//Case 1 - Find surrounding slot is net src
+							if (sx == srcX && sy == srcY) {
+								setMapSlotWave(newMap,x,y,1);
+								placeWave++;
+#if(DEBUG_ROUTER_WAVE)
+								printf("--> Found SRC: Set (%llu,%llu) to Wave 1.\n",(unsigned long long int)x,(unsigned long long int)y);
+#endif
+								break; //For sure, this is the cloest path if this slot is beside the src
+							}
+							
+							//Case 2 - Find surrounding slot is a wave
+							else if ( getMapSlotType(map,sx,sy) == mapslot_wave ) {
+								mapdata_t surroundingWave = getMapSlotValue(map,sx,sy);
+								
+								//Current slot has not been write, write wave = surrounding wave + 1
+								if (getMapSlotType(newMap,x,y) == mapslot_free) {
+									setMapSlotWave(newMap,x,y,surroundingWave+1);
+									placeWave++;
+#if(DEBUG_ROUTER_WAVE)
+									printf("--> Found Wave %llu (current empty): Set (%llu,%llu) to Wave %llu.\n",(unsigned long long int)surroundingWave,(unsigned long long int)x,(unsigned long long int)y,(unsigned long long int)surroundingWave+1);
+#endif
+								}
+								
+								//Current slot has been placed, compare
+								else {
+									mapdata_t selfWave = getMapSlotValue(map,x,y);
+									if (selfWave > surroundingWave + 1) {
+										setMapSlotWave(newMap,x,y,surroundingWave+1);
+										/* placeWave++; */ //We just replace a wave, we did NOT place new wave
+#if(DEBUG_ROUTER_WAVE)
+										printf("--> Found Wave (current larger): Set (%llu,%llu) to Wave 1.\n",(unsigned long long int)x,(unsigned long long int)y,(unsigned long long int)surroundingWave+1);
+#endif
+									}
+								}
+							}
+						}
+					}
+					
+				}
+				
+				else if (x == destX && y == destY) { //For dest, check if it has been connected to a route
+					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}}; //Up, down, right, left
+					for (uint8_t i = 0; i < 4; i++) {
+						mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
+						if (getMapSlotType(map,sx,sy) == mapslot_wave) {
+							mapdata_t traceWave = getMapSlotValue(map,sx,sy);
+							mapaddr_t traceX = sx, traceY = sy;
+#if(DEBUG_ROUTER_WAVE)
+							printf("--> Route found with distance of %llu!\n",(unsigned long long int)traceWave);
+#endif							
+
+
+							//Trace back
+/*							do {
+								
+							} while ();*/
+							return 1;
+						}
+					}
+				}
+			}
+		}
+		
+		map = newMap;
+		
+		//Reach dest?
+		/**/
+		
+#if(DEBUG)
+		printf("> Placed %llu slots.\n",placeWave);
+		displayMap(map);
+#endif
+	} while (placeWave);
+	return 0; //Fail
+}
+
+void displayMap(Map map) {
+	puts("--> Map:");
+	printf("--> Size = %llu * %llu\n", (unsigned long long int)map.width, (unsigned long long int)map.height);
+	for (mapaddr_t y = 0; y < map.height; y++, puts("")) {
+		for (mapaddr_t x = 0; x < map.width; x++) {
+			printf("%17llx",(unsigned long long int)getMapValueAt(map,x,y));
+		}
+	}
 }
 
 
