@@ -4,21 +4,21 @@
 #include <string.h>
 
 //Structure used to represents a net
-struct Net {
-	unsigned long int srcX;
-	unsigned long int srcY;
-	unsigned long int destX;
-	unsigned long int destY;
-};
+typedef struct Net {
+	mapaddr_t srcX;
+	mapaddr_t srcY;
+	mapaddr_t destX;
+	mapaddr_t destY;
+} Net;
 
 //A link list used by the parser
-struct ParserNetlist {
-	struct Net* net;
+typedef struct ParserNetlist {
+	Net net;
 	struct ParserNetlist* next;
-};
+} ParserNetlist;
 
 //An array of net used by main program
-struct Netlist {
-	unsigned long int size;
-	struct Net* nets; //Array of net ptr
-};
+typedef struct Netlist {
+	mapdata_t size;
+	Net* nets; //Array of net ptr
+} Netlist;
