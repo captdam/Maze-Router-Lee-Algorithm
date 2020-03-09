@@ -65,7 +65,7 @@ Map createMap(mapaddr_t width, mapaddr_t height) {
 }
 
 //To create a map exactly like the given map
-struct Map copyMap(Map srcMap) {
+Map copyMapAsNew(Map srcMap) {
 	Map newMap;
 	newMap.width = srcMap.width;
 	newMap.height = srcMap.height;
@@ -76,6 +76,24 @@ struct Map copyMap(Map srcMap) {
 		}
 	}
 	return newMap;
+}
+
+//To copy the content of one map to another, without create a new one, map should be same size
+void copyMapM2M(Map destMap, Map srcMap) {
+	if (destMap.width != srcMap.width || destMap.height != srcMap.height) {
+		fputs("Map not aligned.\n",stderr);
+		exit(-2);
+	}
+	for (mapaddr_t i = 0; i < destMap.height; i++) {
+		for (mapaddr_t j = 0; j < destMap.width; j++) {
+			setMapValueAt(destMap, j, i, getMapValueAt(srcMap, j, i));
+		}
+	}
+}
+
+//Destroy a map, release the map slot memory space
+void destroyMap(Map targetMap) {
+	free(targetMap.map);
 }
 
 /************* Getter, setter, checker *************/
