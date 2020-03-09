@@ -1,2 +1,2 @@
-# MazeRoute
- Single Layer Maze Router
+# Maze Router: Lee Algorithm
+ Single Layer Maze Router using Lee Algorithm.
