@@ -11,9 +11,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "map.c"
+#include "xmap.c"
 #include "parser.c"
+#include "map2html.c"
+
+//#define GUI_BROWSER "C:\Program Files\Mozilla Firefox\firefox.exe"
+
+unsigned long int uiDelay = 0;
 
 void displayMap(Map);
 uint8_t router(Map, mapdata_t);
@@ -24,9 +31,34 @@ int main(int argc, char* argv[]) {
 1 - Get user input: What file I am gonna to process
 *******************************************************************************/
 
-	if (argc < 2) {
-		fputs("Missing argument: Input file\n",stderr);
+	//What is the net file's name?
+	if (!(argc > 1)) {
+		fputs("Missing argument 1: Input net file name.\n",stderr);
 		return -1;
+	}
+	
+	//What is the interval of map file generation (wait for x seconds after generating map file)? If 0, do not generate map file.
+	
+	if (argc > 2) {
+		if ( sscanf(argv[2]," %lu ",&uiDelay) > 0 ) {
+			printf("GUI enabled, UI delay is %lu second(s).\n",uiDelay);
+		}
+		else {
+			fputs("Argument 2 syntax error: UI delay should be an integer.\n",stderr);
+			return -1;
+		}
+	}
+	
+	//If generate map file, what browser to use? (Firefox or Chrome)
+	if (uiDelay) {
+		if (!(argc > 3)) {
+			fputs("Missing argument 3: Browser path.\n",stderr);
+			return -1;
+		}
+		char cmd[ strlen(argv[3]) + strlen(" -new-window gui.html") + 1 ];
+		strcpy(cmd,argv[3]);
+		strcpy(cmd," -new-window gui.html");
+		system(cmd);////////////////////////////////////////////////////////////////////////////////////ISSUE/////////////////
 	}
 	
 	time_t currentTime;
@@ -49,72 +81,39 @@ int main(int argc, char* argv[]) {
 3 - Router routine
 *******************************************************************************/
 	
-	Map workspaceMap = copyMap(emptyMap);
+	Map workspaceMap = copyMapAsNew(emptyMap);
+	saveMap(workspaceMap,uiDelay,"Init.");
+	
 	router(workspaceMap,1);
+//	displayMap(workspaceMap);
+	saveMap(workspaceMap,uiDelay,"Net 1 placed.");
+	return 0;
+	
+	router(workspaceMap,2);
+//	displayMap(workspaceMap);
+	saveMap(workspaceMap,uiDelay,"Net 2 placed.");
+	
+//	return 0;
+	router(workspaceMap,3);
+//	displayMap(workspaceMap);
+	saveMap(workspaceMap,uiDelay,"Net 3 placed.");
+	
+	router(workspaceMap,4);
+//	displayMap(workspaceMap);
+	saveMap(workspaceMap,uiDelay,"Net 4 placed.");
 	
 	
-/*	unsigned long int priorityNetIndex = 0; //The failed net in last design will be placed first
-	
-	unsigned long int bestResultNetCount = 0;
-	struct Map bestMap;
-	
-	for (unsigned long int currentTry = 0; currentTry < MAX_TRY_TIME; currentTry++) {
-		printf("\nDesign %lu:\n",currentTry);
-		
-		//Create new empty design
-		struct Map workMap = copyMap(emptyMap);
-		
-		//Place the priority net
-		Net net1 = netlist[priorityNetIndex];
-#if(DEBUG)
-		printf("--> Place first net: (%lu,%lu) to (%lu,%lu)\n",net1.srcX,net1.srcY,net1.destX,net1.destY);
-#endif
-		uint8_t ok = router(workMap,net1);
-		
-		if (!ok) { //We cannot even place the first net: Next time, start from another random net, hope we can place as much as possible nets
-			unsigned long int newPriority;
-			do {
-				newPriority = rand() % netlist.size;
-			} while(newPriority == priorityNetIndex);
-			priorityNetIndex = newPriority;
-			continue;
-		}
-		
-		//Place all reminding nets
-		for (unsigned long int netIndex = 0; netIndex < netlist.size; netIndex++) {
-			if (netIndex == priorityNetIndex) continue; //Do not place the first net again
-			
-			ok = router(workMap,net1);
-			
-			if (!ok) { //Failed: set the current net to be priority for next try
-				priorityNetIndex = netIndex;
-			}
-		}
-		
-		//All nets placed
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-	}*/
+
 	
 	return 0;
 }
 
-//Give the map, return 1 if net placed, return 0 if fail.
+//Give the map, return 1 if net placed, return 0 if fail. Map will be modified (mark slots used by net)//, or CONTAMINATED IF FAIL (Map slots is pass by reference)
 uint8_t router(Map map, mapdata_t netID) {
 	//Find source and dest
 	mapdata_t srcX, srcY, destX, destY;
 	uint8_t srcFound = 0;
-	for (mapaddr_t y = 0; y < map.height; y++) {
+	for (mapaddr_t y = 0; y < map.height; y++) { //Use (*map).height instead of map->height so I remember it is pass by reference
 		for (mapaddr_t x = 0; x < map.width; x++) {
 			if ( getMapSlotType(map,x,y) == mapslot_net && getMapSlotValue(map,x,y) == netID ) {
 				if (!srcFound) { //Find the first point: src
@@ -137,9 +136,10 @@ uint8_t router(Map map, mapdata_t netID) {
 	
 	//Wave
 	unsigned long long int placeWave;
+	Map newMap = copyMapAsNew(map); //New wave should be read in next iteration; therefore, we read from old map and write to new map
 	do {
 		placeWave = 0; //How mush slots are placed in this iteration
-		Map newMap = copyMap(map); //New wave should be read in next iteration; therefore, we read from old map and write to new map
+		copyMapM2M(newMap,map);
 		
 		for (mapaddr_t y = 0; y < map.height; y++) {
 			for (mapaddr_t x = 0; x < map.width; x++) {
@@ -190,44 +190,69 @@ uint8_t router(Map map, mapdata_t netID) {
 					
 				}
 				
-				else if (x == destX && y == destY) { //For dest, check if it has been connected to a route
-					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}}; //Up, down, right, left
+				else if (x == destX && y == destY) { //For dest
+					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}};
 					for (uint8_t i = 0; i < 4; i++) {
 						mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
-						if (getMapSlotType(map,sx,sy) == mapslot_wave) {
-							mapdata_t traceWave = getMapSlotValue(map,sx,sy);
-							mapaddr_t traceX = sx, traceY = sy;
+						if (sx >= 0 && sx < map.width && sy >= 0 && sy < map.height) { //Must in the map <-- sx=surroundingX
+							if (getMapSlotType(map,sx,sy) == mapslot_wave) { //If a route has reached
+								
+								mapdata_t traceWave = getMapSlotValue(map,sx,sy);
+								mapaddr_t traceX = sx, traceY = sy; //Trade this as pointer when trace back
 #if(DEBUG_ROUTER_WAVE)
-							printf("--> Route found with distance of %llu!\n",(unsigned long long int)traceWave);
+								printf("--> Route found with distance of %llu!\n",(unsigned long long int)traceWave);
 #endif							
 
-
-							//Trace back
-/*							do {
+								//Trace back
+								while (traceWave+1) {
+									setMapSlotUsedByNet(map,sx,sy,netID);
+									printf("Mark (%llu,%llu) with wave %llu.\n",(unsigned long long int)sx,(unsigned long long int)sy,(unsigned long long int)traceWave);
+									mapaddr_t traceSurroundingXY[4][2] = {{sx,sy-1},{sx,sy+1},{sx-1,sy},{sx+1,sy}};
+									for (uint8_t j = 0; j < 4; j++) {
+										mapaddr_t tsx = traceSurroundingXY[j][0], tsy = traceSurroundingXY[j][1];
+										if (tsx >= 0 && tsx < map.width && tsy >= 0 && tsy < map.height) { //Must in the map <-- sx=surroundingX
+											if ( getMapSlotType(map,tsx,tsy) == mapslot_wave && getMapSlotValue(map,tsx,tsy) == traceWave ) {
+												sx = tsx;
+												sy = tsy;
+												break; //One route is enough
+											}
+										}
+									}
+									traceWave--;
+								}
 								
-							} while ();*/
-							return 1;
+								//Clean map
+								destroyMap(newMap); //Destroy the workspace map
+								cleanMap(map); //Clean all wave
+								return 1; //Success
+							}
 						}
 					}
 				}
 			}
 		}
 		
-		map = newMap;
-		
-		//Reach dest?
-		/**/
-		
+		copyMapM2M(map,newMap);
 #if(DEBUG)
 		printf("> Placed %llu slots.\n",placeWave);
 		displayMap(map);
 #endif
+		saveMap(map,uiDelay,"Waving...");
 	} while (placeWave);
+	
+#if(DEBUG_ROUTER_WAVE)
+	puts("--> FAIL! Cannot place route");
+#endif
+
+	//Clean up map and quit
+	destroyMap(newMap); //Destroy the workspace map
+	cleanMap(map); //Clean all wave
 	return 0; //Fail
 }
 
+//Display map in cmd
 void displayMap(Map map) {
-	puts("--> Map:");
+	printf("--> Map: (@%llx)\n",map.map); //Check memory leak
 	printf("--> Size = %llu * %llu\n", (unsigned long long int)map.width, (unsigned long long int)map.height);
 	for (mapaddr_t y = 0; y < map.height; y++, puts("")) {
 		for (mapaddr_t x = 0; x < map.width; x++) {
@@ -235,5 +260,3 @@ void displayMap(Map map) {
 		}
 	}
 }
-
-

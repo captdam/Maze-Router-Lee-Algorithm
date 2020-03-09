@@ -53,3 +53,6 @@ dkms.conf
 
 # Input netsfile and output result
 *.nets
+
+# Generated map file
+map.html
