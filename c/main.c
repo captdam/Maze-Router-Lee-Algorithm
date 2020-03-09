@@ -1,7 +1,8 @@
 #define MAX_TRY_TIME 20
 
 #define DEBUG 1
-#define DEBUG_ROUTER_WAVE 1
+#define DEBUG_ROUTER_WAVE 0
+#define DEBUG_ROUTER_INTERRESULT 0
 
 #define SAVE_SILENT 1 //Do not pop up the result
 #define SAVE_INTERRESULT 1 //Save intermediate result
@@ -17,8 +18,6 @@
 #include "xmap.c"
 #include "parser.c"
 #include "map2html.c"
-
-//#define GUI_BROWSER "C:\Program Files\Mozilla Firefox\firefox.exe"
 
 unsigned long int uiDelay = 0;
 
@@ -55,10 +54,12 @@ int main(int argc, char* argv[]) {
 			fputs("Missing argument 3: Browser path.\n",stderr);
 			return -1;
 		}
-		char cmd[ strlen(argv[3]) + strlen(" -new-window gui.html") + 1 ];
-		strcpy(cmd,argv[3]);
-		strcpy(cmd," -new-window gui.html");
-		system(cmd);////////////////////////////////////////////////////////////////////////////////////ISSUE/////////////////
+		char cmd[ strlen(argv[3]) + strlen(" -new-window ./gui.html") + 3 ];
+		strcpy(cmd,"\"");
+		strcat(cmd,argv[3]);
+		strcat(cmd,"\"");
+		strcat(cmd," -new-window ./gui.html"); //This works with Firefox, but not with Chrome
+		system(cmd);
 	}
 	
 	time_t currentTime;
@@ -87,7 +88,7 @@ int main(int argc, char* argv[]) {
 	router(workspaceMap,1);
 //	displayMap(workspaceMap);
 	saveMap(workspaceMap,uiDelay,"Net 1 placed.");
-	return 0;
+//	return 0;
 	
 	router(workspaceMap,2);
 //	displayMap(workspaceMap);
@@ -233,7 +234,7 @@ uint8_t router(Map map, mapdata_t netID) {
 		}
 		
 		copyMapM2M(map,newMap);
-#if(DEBUG)
+#if(DEBUG_ROUTER_INTERRESULT)
 		printf("> Placed %llu slots.\n",placeWave);
 		displayMap(map);
 #endif
