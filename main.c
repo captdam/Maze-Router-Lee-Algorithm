@@ -1,9 +1,16 @@
 #define MAX_TRY_TIME 20
 
 #define DEBUG 1
+#define DEBUG_PARSER 1
 #define DEBUG_ROUTER_WAVE 0
 #define DEBUG_ROUTER_TRACE 1
-#define DEBUG_ROUTER_INTERRESULT 0
+#define DEBUG_ROUTER_INTERRESULT 1
+
+#define MAX_RETRY 3 //Try MAX_RETRY * netsize times, then choose the provide result
+#define PRIORITY_RANDOM_POSSIBILITY 80 //Possibility = PRIORITY_RANDOM_POSSIBILITY / 255
+/*
+ * Shuffle the netlist may give better result
+*/
 
 #define SAVE_SILENT 1 //Do not pop up the result
 #define SAVE_INTERRESULT 1 //Save intermediate result
@@ -73,38 +80,119 @@ int main(int argc, char* argv[]) {
 
 	printf("Reading netsfile: %s\n",argv[1]);
 
-	Map emptyMap = parser(argv[1]);	
-#if(DEBUG)
+	mapdata_t netsize;
+	Map emptyMap = parser(argv[1],&netsize);
+	puts("\nInit map:");
 	displayMap(emptyMap);
-#endif
+	saveMap(emptyMap,uiDelay,"Init.");
 
 /*******************************************************************************
 3 - Router routine
 *******************************************************************************/
 	
+	Map bestMap = copyMapAsNew(emptyMap); //Best solution
+	mapdata_t bestMapNetCount = 0;
+	
+	mapdata_t priorityNetID = 1;
+	
 	Map workspaceMap = copyMapAsNew(emptyMap);
-	saveMap(workspaceMap,uiDelay,"Init.");
-	displayMap(workspaceMap);
 	
-	router(workspaceMap,1);
-	displayMap(workspaceMap);
-	saveMap(workspaceMap,uiDelay,"Net 1 placed.");
+	char guiSignal[200];
+	for (unsigned int currentTry = 0; currentTry < MAX_RETRY * netsize; currentTry++) {
+		printf("\n===== RUN %u ==============================\n",currentTry);
+		copyMapM2M(workspaceMap,emptyMap);
+		mapdata_t placedCount = 0;
+		
+		//Create netlist (array of low-priority nets)
+		mapdata_t netlist[netsize -1];
+		mapdata_t idx = 0;
+		for (mapdata_t i = 1; i <= netsize; i++)
+			if (i != priorityNetID)
+				netlist[idx++] = i;
+		
+		//Randomlize the netlist
+		for (mapdata_t i = 0; i < netsize -2; i++) {
+			for (mapdata_t j = i; j < netsize -1; j++) {
+				if ( (rand() & 0xFF) < PRIORITY_RANDOM_POSSIBILITY ) { //Possibility = x / 255
+					mapdata_t temp = netlist[i];
+					netlist[i] = netlist[j];
+					netlist[j] = temp;
+				}
+			}
+		}
+		
+#if(DEBUG)
+		puts("Priority list:");
+		printf("%llu",(unsigned long long int)priorityNetID);
+		for (mapdata_t i = 0; i < netsize -1; i++) {
+			printf(" --> %llu",netlist[i]);
+		}
+		puts("");
+#endif
+		
+		//Place the first net
+		if (router(workspaceMap,priorityNetID)) { //Success
+			placedCount++;
+			sprintf(guiSignal,"Net %llu placed. %llu/%llu placed.",(unsigned long long int) priorityNetID, (unsigned long long int) placedCount, (unsigned long long int) netsize);
+			puts(guiSignal);
+			displayMap(workspaceMap);
+			saveMap(workspaceMap,uiDelay,guiSignal);
+		}
+		else { //Fail
+			puts("Unable to place any net. Retry..."); //We have no net placed in this run
+			priorityNetID = rand() % netsize + 1; //Start from another net, hope we can get better result
+			continue; //Quit current run
+		}
+		
+		//Place the remaining nets
+		uint8_t nestLoopSignal = 0;
+		for (mapdata_t i = 0; i < netsize -1; i++) {
+			if (router(workspaceMap,netlist[i])) { //Success
+				placedCount++;
+				sprintf(guiSignal,"Net %llu placed. %llu/%llu placed.",(unsigned long long int) netlist[i], (unsigned long long int) placedCount, (unsigned long long int) netsize);
+				puts(guiSignal);
+				displayMap(workspaceMap);
+				saveMap(workspaceMap,uiDelay,guiSignal);
+				
+				if (placedCount > bestMapNetCount) { //Better solution found
+					printf("Better solution found. %llu nets placed.\n",(unsigned long long int)placedCount);
+					copyMapM2M(bestMap,workspaceMap);
+					bestMapNetCount = placedCount;
+				}
+				
+				if (placedCount == netsize) { //All nets placed
+					puts("All nets placed. DONE!");
+					nestLoopSignal = 1; //Quit all run
+					break;
+				}
+			}
+			else { //Fail
+				if ( (rand() & 0xFF) < 80) //Retry, or retry with the fail net as priority net
+					priorityNetID = netlist[i];
+			
+				printf(guiSignal,"Net %llu failed. %llu/%llu placed. Retry...",(unsigned long long int) netlist[i], (unsigned long long int) placedCount, (unsigned long long int) netsize);
+				puts(guiSignal);
+				displayMap(workspaceMap);
+				saveMap(workspaceMap,uiDelay,guiSignal);
+				
+				destroyMap(workspaceMap);
+				nestLoopSignal = 2; //Quit current run
+				break;
+			}
+		}
+		if (nestLoopSignal == 1) break;
+		else if (nestLoopSignal == 2) continue;
+		
+	}
+		
+	puts("\n===== PROCESS END ==============================");
+	sprintf(guiSignal,"Final result: %llu nets placed",(unsigned long long int) bestMapNetCount);
+	puts(guiSignal);
+	displayMap(bestMap);
+	saveMap(bestMap,uiDelay,guiSignal);
 	
-	router(workspaceMap,2);
-	displayMap(workspaceMap);
-	saveMap(workspaceMap,uiDelay,"Net 2 placed.");
-
-	router(workspaceMap,3);
-	displayMap(workspaceMap);
-	saveMap(workspaceMap,uiDelay,"Net 3 placed.");
-	
-	router(workspaceMap,4);
-	displayMap(workspaceMap);
-	saveMap(workspaceMap,uiDelay,"Net 4 placed.");
-	
-	
-
-	
+	destroyMap(bestMap);
+	destroyMap(workspaceMap);
 	return 0;
 }
 
@@ -131,7 +219,7 @@ uint8_t router(Map map, mapdata_t netID) {
 		}
 	}
 #if(DEBUG)
-	printf("--> SRC (%llu,%llu). DEST (%llu,%llu)\n",(unsigned long long int)srcX,(unsigned long long int)srcY,(unsigned long long int)destX,(unsigned long long int)destY);
+	printf("> Net %llu. SRC (%llu,%llu). DEST (%llu,%llu)\n",(unsigned long long int)netID,(unsigned long long int)srcX,(unsigned long long int)srcY,(unsigned long long int)destX,(unsigned long long int)destY);
 #endif
 	
 	//Wave
@@ -251,7 +339,6 @@ uint8_t router(Map map, mapdata_t netID) {
 						};
 						void traceBack(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) {
 							if ( getMapSlotType(map,x,y) == mapslot_wave && getMapSlotValue(map,x,y) == (*(struct traceBackDataXch*)dataStruct).nextWave ) {
-								printf("------> S: (%llu,%llu)\n",(unsigned long long int)x,(unsigned long long int)y);
 								(*(struct traceBackDataXch*)dataStruct).nextX = x;
 								(*(struct traceBackDataXch*)dataStruct).nextY = y;
 							}
@@ -272,7 +359,7 @@ uint8_t router(Map map, mapdata_t netID) {
 							
 						}
 						
-						//Clean map
+						//SUCCESS : Clean map
 						destroyMap(newMap); //Destroy the workspace map
 						cleanMap(map); //Clean all wave
 						return 1; //Success
@@ -282,18 +369,19 @@ uint8_t router(Map map, mapdata_t netID) {
 		}
 		
 		copyMapM2M(map,newMap);
+
 #if(DEBUG_ROUTER_INTERRESULT)
 		printf("> Placed %llu slots.\n",placeWave);
 		displayMap(map);
-#endif
-		saveMap(map,uiDelay,"Waving...");
-	} while (placeWave);
-	
-#if(DEBUG_ROUTER_WAVE)
-	puts("--> FAIL! Cannot place route");
+		
+		char guiSignal[200];
+		sprintf(guiSignal,"Net %llu waving...",(unsigned long long int) netID);
+		saveMap(map,uiDelay,guiSignal);
 #endif
 
-	//Clean up map and quit
+	} while (placeWave);
+
+	//FAIL : Clean up map and quit
 	destroyMap(newMap); //Destroy the workspace map
 	cleanMap(map); //Clean all wave
 	return 0; //Fail

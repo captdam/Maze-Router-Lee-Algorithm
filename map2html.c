@@ -54,5 +54,6 @@ void saveMap(Map map, unsigned long int delayTime, char* signal) {
 	fclose(fp);
 	puts("--> Map exported.");
 	
-	sleep(delayTime);
+	if (delayTime != (unsigned long int)-1)
+		sleep(delayTime);
 }
