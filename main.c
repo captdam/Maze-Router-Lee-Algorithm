@@ -4,16 +4,14 @@
 #define DEBUG_PARSER 1
 #define DEBUG_ROUTER_WAVE 0
 #define DEBUG_ROUTER_TRACE 1
-#define DEBUG_ROUTER_INTERRESULT 1
+#define DEBUG_ROUTER_INTERRESULT_HTML 1 //Export intermediate result
+#define DEBUG_ROUTER_INTERRESULT_CMD 0 //Print intermediate result
 
-#define MAX_RETRY 3 //Try MAX_RETRY * netsize times, then choose the provide result
+#define MAX_RETRY 2llu //Try MAX_RETRY * netsize times, then choose the provide result
 #define PRIORITY_RANDOM_POSSIBILITY 80 //Possibility = PRIORITY_RANDOM_POSSIBILITY / 255
 /*
  * Shuffle the netlist may give better result
 */
-
-#define SAVE_SILENT 1 //Do not pop up the result
-#define SAVE_INTERRESULT 1 //Save intermediate result
 
 #include <stdio.h>
 #include <stdint.h>
@@ -70,7 +68,7 @@ int main(int argc, char* argv[]) {
 	}
 	
 	time_t currentTime;
-	time(&currentTime);
+	srand(time(&currentTime));
 	struct tm* localTime = localtime(&currentTime);
 	printf("Task start: %s\n",asctime(localTime));
 
@@ -98,8 +96,9 @@ int main(int argc, char* argv[]) {
 	Map workspaceMap = copyMapAsNew(emptyMap);
 	
 	char guiSignal[200];
-	for (unsigned int currentTry = 0; currentTry < MAX_RETRY * netsize; currentTry++) {
-		printf("\n===== RUN %u ==============================\n",currentTry);
+	unsigned long long int maxRunCount = MAX_RETRY * netsize;
+	for (unsigned int currentTry = 0; currentTry < maxRunCount; currentTry++) {
+		printf("\n===== RUN %llu/%llu ==============================\n",(unsigned long long int)(currentTry+1),maxRunCount);
 		copyMapM2M(workspaceMap,emptyMap);
 		mapdata_t placedCount = 0;
 		
@@ -133,7 +132,7 @@ int main(int argc, char* argv[]) {
 		//Place the first net
 		if (router(workspaceMap,priorityNetID)) { //Success
 			placedCount++;
-			sprintf(guiSignal,"Net %llu placed. %llu/%llu placed.",(unsigned long long int) priorityNetID, (unsigned long long int) placedCount, (unsigned long long int) netsize);
+			sprintf(guiSignal, "Net %llu placed. 1/%llu placed.", (unsigned long long int) placedCount, (unsigned long long int) netsize);
 			puts(guiSignal);
 			displayMap(workspaceMap);
 			saveMap(workspaceMap,uiDelay,guiSignal);
@@ -170,7 +169,7 @@ int main(int argc, char* argv[]) {
 				if ( (rand() & 0xFF) < 80) //Retry, or retry with the fail net as priority net
 					priorityNetID = netlist[i];
 			
-				printf(guiSignal,"Net %llu failed. %llu/%llu placed. Retry...",(unsigned long long int) netlist[i], (unsigned long long int) placedCount, (unsigned long long int) netsize);
+				sprintf(guiSignal,"Net %llu failed. %llu/%llu placed. Retry...",(unsigned long long int) netlist[i], (unsigned long long int) placedCount, (unsigned long long int) netsize);
 				puts(guiSignal);
 				displayMap(workspaceMap);
 				saveMap(workspaceMap,uiDelay,guiSignal);
@@ -370,10 +369,11 @@ uint8_t router(Map map, mapdata_t netID) {
 		
 		copyMapM2M(map,newMap);
 
-#if(DEBUG_ROUTER_INTERRESULT)
+#if(DEBUG_ROUTER_INTERRESULT_CMD)
 		printf("> Placed %llu slots.\n",placeWave);
 		displayMap(map);
-		
+#endif
+#if(DEBUG_ROUTER_INTERRESULT_HTML)	
 		char guiSignal[200];
 		sprintf(guiSignal,"Net %llu waving...",(unsigned long long int) netID);
 		saveMap(map,uiDelay,guiSignal);
