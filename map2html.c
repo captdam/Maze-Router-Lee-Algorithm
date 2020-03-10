@@ -33,13 +33,13 @@ void saveMap(Map map, unsigned long int delayTime, char* signal) {
 					fputs("<td class=\"map_free\"></td>",fp);
 					break;
 				case mapslot_wave:
-					fprintf(fp,"<td class=\"map_wave\">%llx</td>",(unsigned long long int)getMapSlotValue(map,x,y));
+					fprintf(fp,"<td class=\"map_wave\">%llu</td>",(unsigned long long int)getMapSlotValue(map,x,y));
 					break;
 				case mapslot_obstruction:
 					fputs("<td class=\"map_obstruction\"></td>",fp);
 					break;
 				case mapslot_net:
-					fprintf(fp,"<td class=\"map_net\">%llx</td>",(unsigned long long int)getMapSlotValue(map,x,y));
+					fprintf(fp,"<td class=\"map_net\">%llu</td>",(unsigned long long int)getMapSlotValue(map,x,y));
 					break;
 				default:
 					fputs("<td class=\"map_Unknown\">X</td>",fp);
