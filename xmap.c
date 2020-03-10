@@ -8,6 +8,13 @@
  * Consider map.c as a ganaral map libeary, and this is an router extension
 */
 
+#define NEIGHBOR_RANDOM_POSSIBILITY 100 //Possibility = NEIGHBOR_RANDOM_POSSIBILITY / 255
+/* About random:
+ * In some operation, only the last element in the slots array (which is the left neighbor) will be used.
+ * In some case, another neighbor may be better option.
+ * Therefore, we shuffle the array to allow different neighbor to be used.
+*/
+
 //Clean a map, remove all waves
 void cleanMap(Map map) {
 	for (mapaddr_t i = 0; i < map.height; i++) {
@@ -21,6 +28,22 @@ void cleanMap(Map map) {
 //For all neberhood, do function. Using *functionData to pass value to the function by reference
 void applyNeighbor(Map map, mapaddr_t selfX, mapaddr_t selfY, void (*function)(), void *functionData) {
 	mapaddr_t surroundingXY[4][2] = {{selfX,selfY-1},{selfX,selfY+1},{selfX-1,selfY},{selfX+1,selfY}}; //Up, down, right, left
+	
+	//Randomlize the slots
+	for (uint8_t i = 0; i < 3; i++) {
+		for (uint8_t j = i; j < 4; j++) {
+			if ( rand()&0xFF < NEIGHBOR_RANDOM_POSSIBILITY ) { //Possibility = x / 255
+				mapaddr_t temp;
+				temp = surroundingXY[i][0];
+				surroundingXY[j][0] = surroundingXY[i][0];
+				surroundingXY[i][0] = temp;
+				temp = surroundingXY[i][1];
+				surroundingXY[j][1] = surroundingXY[i][1];
+				surroundingXY[i][1] = temp;
+			}
+		}
+	}
+	
 	for (uint8_t i = 0; i < 4; i++) {
 		mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
 		if (sx >= 0 && sx < map.width && sy >= 0 && sy < map.height) { //Must in the map <-- sx=surroundingX
