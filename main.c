@@ -1,8 +1,9 @@
 #define MAX_TRY_TIME 20
 
 #define DEBUG 1
-#define DEBUG_ROUTER_WAVE 1
-#define DEBUG_ROUTER_INTERRESULT 1
+#define DEBUG_ROUTER_WAVE 0
+#define DEBUG_ROUTER_TRACE 1
+#define DEBUG_ROUTER_INTERRESULT 0
 
 #define SAVE_SILENT 1 //Do not pop up the result
 #define SAVE_INTERRESULT 1 //Save intermediate result
@@ -142,6 +143,10 @@ uint8_t router(Map map, mapdata_t netID) {
 		
 		for (mapaddr_t y = 0; y < map.height; y++) {
 			for (mapaddr_t x = 0; x < map.width; x++) {
+#if(DEBUG_ROUTER_WAVE)
+				printf("--> Check Point (%llu,%llu):\n",(unsigned long long int)x,(unsigned long long int)y);
+#endif
+				
 				if (getMapSlotType(map,x,y) == mapslot_free) { //For all free slot
 					
 					//Find the correct wave value that should be write to the current slot
@@ -246,6 +251,7 @@ uint8_t router(Map map, mapdata_t netID) {
 						};
 						void traceBack(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) {
 							if ( getMapSlotType(map,x,y) == mapslot_wave && getMapSlotValue(map,x,y) == (*(struct traceBackDataXch*)dataStruct).nextWave ) {
+								printf("------> S: (%llu,%llu)\n",(unsigned long long int)x,(unsigned long long int)y);
 								(*(struct traceBackDataXch*)dataStruct).nextX = x;
 								(*(struct traceBackDataXch*)dataStruct).nextY = y;
 							}
@@ -256,13 +262,13 @@ uint8_t router(Map map, mapdata_t netID) {
 						dataXch2.nextY = dataXch.traceY;
 						dataXch2.nextWave = dataXch.traceWave;
 						
-						while (dataXch2.nextWave+1) {
-#if(DEBUG_ROUTER_WAVE)
-							printf("Mark (%llu,%llu) with wave %llu.\n",(unsigned long long int)dataXch2.nextX,(unsigned long long int)dataXch2.nextY,(unsigned long long int)dataXch2.nextWave);
+						while (dataXch2.nextWave) {
+#if(DEBUG_ROUTER_TRACE)
+							printf("----> Mark (%llu,%llu) with wave %llu.\n",(unsigned long long int)dataXch2.nextX,(unsigned long long int)dataXch2.nextY,(unsigned long long int)dataXch2.nextWave);
 #endif
+							dataXch2.nextWave--; //Multiple route may be found, so nextWave-- cannot be placed in the function
 							setMapSlotUsedByNet(map, dataXch2.nextX, dataXch2.nextY, netID);
 							applyNeighbor(map, dataXch2.nextX, dataXch2.nextY, traceBack, &dataXch2);
-							dataXch2.nextWave--; //Multiple route may be found, so nextWave-- cannot be placed in the function
 							
 						}
 						
@@ -271,51 +277,6 @@ uint8_t router(Map map, mapdata_t netID) {
 						cleanMap(map); //Clean all wave
 						return 1; //Success
 					}
-					
-					
-/*					
-					
-					
-					
-					
-					
-					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}};
-					for (uint8_t i = 0; i < 4; i++) {
-						mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
-						if (sx >= 0 && sx < map.width && sy >= 0 && sy < map.height) { //Must in the map <-- sx=surroundingX
-							if (getMapSlotType(map,sx,sy) == mapslot_wave) { //If a route has reached
-								
-								mapdata_t traceWave = getMapSlotValue(map,sx,sy);
-								mapaddr_t traceX = sx, traceY = sy; //Trade this as pointer when trace back
-#if(DEBUG_ROUTER_WAVE)
-								printf("--> Route found with distance of %llu!\n",(unsigned long long int)traceWave);
-#endif							
-
-								//Trace back
-								while (traceWave+1) {
-									setMapSlotUsedByNet(map,sx,sy,netID);
-									printf("Mark (%llu,%llu) with wave %llu.\n",(unsigned long long int)sx,(unsigned long long int)sy,(unsigned long long int)traceWave);
-									mapaddr_t traceSurroundingXY[4][2] = {{sx,sy-1},{sx,sy+1},{sx-1,sy},{sx+1,sy}};
-									for (uint8_t j = 0; j < 4; j++) {
-										mapaddr_t tsx = traceSurroundingXY[j][0], tsy = traceSurroundingXY[j][1];
-										if (tsx >= 0 && tsx < map.width && tsy >= 0 && tsy < map.height) { //Must in the map <-- sx=surroundingX
-											if ( getMapSlotType(map,tsx,tsy) == mapslot_wave && getMapSlotValue(map,tsx,tsy) == traceWave ) {
-												sx = tsx;
-												sy = tsy;
-												break; //One route is enough
-											}
-										}
-									}
-									traceWave--;
-								}
-								
-								//Clean map
-								destroyMap(newMap); //Destroy the workspace map
-								cleanMap(map); //Clean all wave
-								return 1; //Success
-							}
-						}
-					}*/
 				}
 			}
 		}
