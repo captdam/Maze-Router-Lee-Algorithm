@@ -1,8 +1,8 @@
 #define MAX_TRY_TIME 20
 
 #define DEBUG 1
-#define DEBUG_ROUTER_WAVE 0
-#define DEBUG_ROUTER_INTERRESULT 0
+#define DEBUG_ROUTER_WAVE 1
+#define DEBUG_ROUTER_INTERRESULT 1
 
 #define SAVE_SILENT 1 //Do not pop up the result
 #define SAVE_INTERRESULT 1 //Save intermediate result
@@ -37,7 +37,6 @@ int main(int argc, char* argv[]) {
 	}
 	
 	//What is the interval of map file generation (wait for x seconds after generating map file)? If 0, do not generate map file.
-	
 	if (argc > 2) {
 		if ( sscanf(argv[2]," %lu ",&uiDelay) > 0 ) {
 			printf("GUI enabled, UI delay is %lu second(s).\n",uiDelay);
@@ -84,23 +83,22 @@ int main(int argc, char* argv[]) {
 	
 	Map workspaceMap = copyMapAsNew(emptyMap);
 	saveMap(workspaceMap,uiDelay,"Init.");
+	displayMap(workspaceMap);
 	
 	router(workspaceMap,1);
-//	displayMap(workspaceMap);
+	displayMap(workspaceMap);
 	saveMap(workspaceMap,uiDelay,"Net 1 placed.");
-//	return 0;
 	
 	router(workspaceMap,2);
-//	displayMap(workspaceMap);
+	displayMap(workspaceMap);
 	saveMap(workspaceMap,uiDelay,"Net 2 placed.");
-	
-//	return 0;
+
 	router(workspaceMap,3);
-//	displayMap(workspaceMap);
+	displayMap(workspaceMap);
 	saveMap(workspaceMap,uiDelay,"Net 3 placed.");
 	
 	router(workspaceMap,4);
-//	displayMap(workspaceMap);
+	displayMap(workspaceMap);
 	saveMap(workspaceMap,uiDelay,"Net 4 placed.");
 	
 	
@@ -114,7 +112,7 @@ uint8_t router(Map map, mapdata_t netID) {
 	//Find source and dest
 	mapdata_t srcX, srcY, destX, destY;
 	uint8_t srcFound = 0;
-	for (mapaddr_t y = 0; y < map.height; y++) { //Use (*map).height instead of map->height so I remember it is pass by reference
+	for (mapaddr_t y = 0; y < map.height; y++) {
 		for (mapaddr_t x = 0; x < map.width; x++) {
 			if ( getMapSlotType(map,x,y) == mapslot_net && getMapSlotValue(map,x,y) == netID ) {
 				if (!srcFound) { //Find the first point: src
@@ -146,52 +144,141 @@ uint8_t router(Map map, mapdata_t netID) {
 			for (mapaddr_t x = 0; x < map.width; x++) {
 				if (getMapSlotType(map,x,y) == mapslot_free) { //For all free slot
 					
-					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}}; //Up, down, right, left
-					for (uint8_t i = 0; i < 4; i++) {
-						mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
-						if (sx >= 0 && sx < map.width && sy >= 0 && sy < map.height) { //Must in the map <-- sx=surroundingX
-							
-							//Case 1 - Find surrounding slot is net src
-							if (sx == srcX && sy == srcY) {
-								setMapSlotWave(newMap,x,y,1);
-								placeWave++;
+					//Find the correct wave value that should be write to the current slot
+					struct makeWaveDataXch {
+						mapaddr_t srcX;
+						mapaddr_t srcY;
+						mapdata_t shouldBePlacedWave;
+						
+					};
+					void makeWave(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) {
 #if(DEBUG_ROUTER_WAVE)
-								printf("--> Found SRC: Set (%llu,%llu) to Wave 1.\n",(unsigned long long int)x,(unsigned long long int)y);
+						printf("----> Check neighbor (%llu,%llu): ",(unsigned long long int)x,(unsigned long long int)y);
 #endif
-								break; //For sure, this is the cloest path if this slot is beside the src
-							}
-							
-							//Case 2 - Find surrounding slot is a wave
-							else if ( getMapSlotType(map,sx,sy) == mapslot_wave ) {
-								mapdata_t surroundingWave = getMapSlotValue(map,sx,sy);
-								
-								//Current slot has not been write, write wave = surrounding wave + 1
-								if (getMapSlotType(newMap,x,y) == mapslot_free) {
-									setMapSlotWave(newMap,x,y,surroundingWave+1);
-									placeWave++;
+						
+						//Case 1 - Find surrounding slot is net src
+						if (x == (*(struct makeWaveDataXch*)dataStruct).srcX && y == (*(struct makeWaveDataXch*)dataStruct).srcY ) {
+							(*(struct makeWaveDataXch*)dataStruct).shouldBePlacedWave = 1;
 #if(DEBUG_ROUTER_WAVE)
-									printf("--> Found Wave %llu (current empty): Set (%llu,%llu) to Wave %llu.\n",(unsigned long long int)surroundingWave,(unsigned long long int)x,(unsigned long long int)y,(unsigned long long int)surroundingWave+1);
+							fputs("Found SRC: Wave = 1.",stdout);
+#endif
+						}
+						
+						//Case 2 - Find surrounding slot is a wave
+						else if (getMapSlotType(map,x,y) == mapslot_wave) {
+							mapdata_t surroundingWave = getMapSlotValue(map,x,y);
+							mapdata_t swp = surroundingWave + 1;
+							if ( (*(struct makeWaveDataXch*)dataStruct).shouldBePlacedWave == 0 ) { //Unplaced
+								(*(struct makeWaveDataXch*)dataStruct).shouldBePlacedWave = swp;
+#if(DEBUG_ROUTER_WAVE)
+								printf("Found nearby wave: Wave = %llu.",(unsigned long long int)swp);
+#endif
+							}
+							else { //[R] Placed, then compare
+								if ( (*(struct makeWaveDataXch*)dataStruct).shouldBePlacedWave > swp) {
+									(*(struct makeWaveDataXch*)dataStruct).shouldBePlacedWave = swp;
+#if(DEBUG_ROUTER_WAVE)
+									printf(" > Found nearby wave (smaller): Wave = %llu.",(unsigned long long int)swp);
 #endif
 								}
-								
-								//Current slot has been placed, compare
-								else {
-									mapdata_t selfWave = getMapSlotValue(map,x,y);
-									if (selfWave > surroundingWave + 1) {
-										setMapSlotWave(newMap,x,y,surroundingWave+1);
-										/* placeWave++; */ //We just replace a wave, we did NOT place new wave
+							}
+						}
+						
 #if(DEBUG_ROUTER_WAVE)
-										printf("--> Found Wave (current larger): Set (%llu,%llu) to Wave 1.\n",(unsigned long long int)x,(unsigned long long int)y,(unsigned long long int)surroundingWave+1);
+						puts("");
 #endif
-									}
+					}
+					
+					struct makeWaveDataXch dataXch;
+					dataXch.srcX = srcX;
+					dataXch.srcY = srcY;
+					dataXch.shouldBePlacedWave = 0; //Unplaced, because we will not place zero-wave. so we use 0 as a flag
+					applyNeighbor(map, x, y, makeWave, &dataXch);
+					
+					if (dataXch.shouldBePlacedWave) { //Placed
+						setMapSlotWave(newMap,x,y,dataXch.shouldBePlacedWave);
+						placeWave++;
+					}
+				}
+				
+				else if (x == destX && y == destY) { //For dest
+					
+					//Check if any path reaches the dest
+					struct traceBackinitDataXch {
+						mapaddr_t traceX;
+						mapaddr_t traceY;
+						mapdata_t traceWave;
+						uint8_t pathReached;
+					};
+					void traceBackInit(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) {
+						if (getMapSlotType(map,x,y) == mapslot_wave) {
+							mapdata_t traceWave = getMapSlotValue(map,x,y);
+							if ( (*(struct traceBackinitDataXch*)dataStruct).pathReached == 0 ) {
+								(*(struct traceBackinitDataXch*)dataStruct).pathReached = 1;
+								(*(struct traceBackinitDataXch*)dataStruct).traceWave = traceWave;
+								(*(struct traceBackinitDataXch*)dataStruct).traceX = x;
+								(*(struct traceBackinitDataXch*)dataStruct).traceY = y;
+							}
+							else { //[R] Multiple path reached, find the one with lowest cost
+								if (traceWave < (*(struct traceBackinitDataXch*)dataStruct).traceWave) {
+									(*(struct traceBackinitDataXch*)dataStruct).traceWave = traceWave;
+									(*(struct traceBackinitDataXch*)dataStruct).traceX = x;
+									(*(struct traceBackinitDataXch*)dataStruct).traceY = y;
 								}
 							}
 						}
 					}
 					
-				}
-				
-				else if (x == destX && y == destY) { //For dest
+					struct traceBackinitDataXch dataXch;
+					dataXch.pathReached = 0;
+					applyNeighbor(map, x, y, traceBackInit, &dataXch);
+					
+					if (dataXch.pathReached) {
+#if(DEBUG)
+						printf("--> Route found with distance of %llu!\n",(unsigned long long int)dataXch.traceWave);
+#endif
+
+						//Find a nearby slot that has the correct wave value
+						struct traceBackDataXch {
+							mapaddr_t nextX;
+							mapaddr_t nextY;
+							mapdata_t nextWave;
+						};
+						void traceBack(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) {
+							if ( getMapSlotType(map,x,y) == mapslot_wave && getMapSlotValue(map,x,y) == (*(struct traceBackDataXch*)dataStruct).nextWave ) {
+								(*(struct traceBackDataXch*)dataStruct).nextX = x;
+								(*(struct traceBackDataXch*)dataStruct).nextY = y;
+							}
+						}
+
+						struct traceBackDataXch dataXch2;
+						dataXch2.nextX = dataXch.traceX;
+						dataXch2.nextY = dataXch.traceY;
+						dataXch2.nextWave = dataXch.traceWave;
+						
+						while (dataXch2.nextWave+1) {
+#if(DEBUG_ROUTER_WAVE)
+							printf("Mark (%llu,%llu) with wave %llu.\n",(unsigned long long int)dataXch2.nextX,(unsigned long long int)dataXch2.nextY,(unsigned long long int)dataXch2.nextWave);
+#endif
+							setMapSlotUsedByNet(map, dataXch2.nextX, dataXch2.nextY, netID);
+							applyNeighbor(map, dataXch2.nextX, dataXch2.nextY, traceBack, &dataXch2);
+							dataXch2.nextWave--; //Multiple route may be found, so nextWave-- cannot be placed in the function
+							
+						}
+						
+						//Clean map
+						destroyMap(newMap); //Destroy the workspace map
+						cleanMap(map); //Clean all wave
+						return 1; //Success
+					}
+					
+					
+/*					
+					
+					
+					
+					
+					
 					mapaddr_t surroundingXY[4][2] = {{x,y-1},{x,y+1},{x-1,y},{x+1,y}};
 					for (uint8_t i = 0; i < 4; i++) {
 						mapaddr_t sx = surroundingXY[i][0], sy = surroundingXY[i][1];
@@ -228,7 +315,7 @@ uint8_t router(Map map, mapdata_t netID) {
 								return 1; //Success
 							}
 						}
-					}
+					}*/
 				}
 			}
 		}
