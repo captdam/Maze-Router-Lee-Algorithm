@@ -5,12 +5,8 @@
 
 #define BUFFER_SIZE 255
 
-#ifndef DEBUG
-#define DEBUG 1
-#endif
-
 //Read a file contains map size, obstructions and nets, return the map
-Map parser(char* filename) {
+Map parser(char* filename, mapdata_t *netCount) {
 	
 	FILE* fp = fopen(filename,"r");
 	if (!fp) {
@@ -28,16 +24,21 @@ Map parser(char* filename) {
 		
 		//First line: map size
 		if (!fileLine) {
-			unsigned long long int mapSize;
-			if ( sscanf(buffer," %llu ",&mapSize) > 0 ) {
+			unsigned long long int mapSizeX, mapSizeY;
+			if ( sscanf(buffer," %llu %llu ",&mapSizeX,&mapSizeY) > 1 ) {
 #if(DEBUG_PARSER)
-				printf("Get map size: %llu.",mapSize);
+				printf("Get map size: %llu * %llu.",mapSizeX,mapSizeY);
 #endif
-				map = createMap((mapaddr_t)mapSize,(mapaddr_t)mapSize);
+				map = createMap((mapaddr_t)mapSizeX,(mapaddr_t)mapSizeY);
+			}
+			else if ( sscanf(buffer," %llu ",&mapSizeX) > 0 ) {
+#if(DEBUG_PARSER)
+				printf("Get map size: %llu.",mapSizeX);
+#endif
+				map = createMap((mapaddr_t)mapSizeX,(mapaddr_t)mapSizeX);
 			}
 			else {
-				fputs("Input file bad structure: Cannot get map size.\n",stderr);
-				exit(-1);
+				fputs("Skip",stdout);
 			}
 		}
 		
@@ -45,13 +46,13 @@ Map parser(char* filename) {
 		else {
 			unsigned long long int x1, y1, x2, y2;
 			if ( sscanf(buffer," obstruction %llu %llu ",&x1,&y1) > 0 ) {
-#if(DEBUG)
+#if(DEBUG_PARSER)
 				printf("Find obstruction at (%llu,%llu).",x1,y1);
 #endif
 				setMapSlotObstruction(map,(mapaddr_t)x1,(mapaddr_t)y1);
 			}
 			else if ( sscanf(buffer," net %llu %llu %llu %llu ",&x1,&y1,&x2,&y2) > 0 ) {
-#if(DEBUG)
+#if(DEBUG_PARSER)
 				printf("Find net %llu at (%llu,%llu) to (%llu,%llu).",(unsigned long long int)netID,x1,y1,x2,y2);
 #endif
 				setMapSlotUsedByNet(map,(mapaddr_t)x1,(mapaddr_t)y1,netID);
@@ -59,8 +60,7 @@ Map parser(char* filename) {
 				netID++;
 			}
 			else {
-				fputs("Input file bad structure: Cannot understant input file.\n",stderr);
-				exit(-1);
+				fputs("Skip",stdout);
 			}
 		}
 		
@@ -69,5 +69,6 @@ Map parser(char* filename) {
 	}
 	
 	fclose(fp);
+	*netCount = netID - 1;
 	return map;
 }
