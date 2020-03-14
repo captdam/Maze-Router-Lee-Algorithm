@@ -1,7 +1,7 @@
 #define DEBUG 1
 #define DEBUG_PARSER 1
 #define DEBUG_ROUTER_WAVE 0
-#define DEBUG_ROUTER_TRACE 1
+#define DEBUG_ROUTER_TRACE 0
 
 #define BUFFER_SIZE 255
 
@@ -58,7 +58,8 @@ int main(int argc, char* argv[]) {
 	//Get config
 	FILE* fp = fopen("./config.cfg","r");
 	if (!fp) {
-		puts("Cannot read config file. Using default config.");
+		fputs("Cannot read config file.\n",stderr);
+		return -1;
 	}
 	
 	char buffer[BUFFER_SIZE];
@@ -68,7 +69,7 @@ int main(int argc, char* argv[]) {
 			continue;
 		
 		//GUI browser config
-		if ( sscanf(buffer," gui_path_command = *%[^*]s* ",&setting) > 0 ) {
+		if ( sscanf(buffer," gui_path_command = *%[^*]s* ",setting) > 0 ) {
 			if (strcmp(setting,"manual") == 0) {
 				puts("Manual mode, GUI not auto opened.");
 			}
@@ -77,6 +78,7 @@ int main(int argc, char* argv[]) {
 				sprintf(cmd,setting,"gui.html");
 				system(cmd);
 				puts("Browser mode, GUI opened.");
+//				printf("%s\n",cmd);
 			}
 		}
 		
@@ -150,7 +152,7 @@ int main(int argc, char* argv[]) {
 		puts("Priority list:");
 		printf("%llu",(unsigned long long int)priorityNetID);
 		for (mapdata_t i = 0; i < netsize -1; i++) {
-			printf(" --> %llu",netlist[i]);
+			printf(" --> %llu",(unsigned long long int)netlist[i]);
 		}
 		puts("");
 #endif

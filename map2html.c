@@ -50,7 +50,7 @@ void saveMap(Map map, unsigned long int delayTime, char* signal) {
 	
 	fputs("</html>",fp);
 	fclose(fp);
-	puts("--> Map exported.");
+//	puts("--> Map exported.");
 	
 	
 	struct timespec t = {0, delayTime*1000000};
