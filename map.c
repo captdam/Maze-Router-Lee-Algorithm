@@ -61,6 +61,9 @@ Map createMap(mapaddr_t width, mapaddr_t height) {
 	newMap.width = width;
 	newMap.height = height;
 	newMap.map = calloc(width * height, sizeof(mapdata_t));
+	if (newMap.map == NULL) {
+		fputs("SYSTEM ERROR\tCannot alloc memory.",stderr);
+	}
 	return newMap;
 }
 
@@ -70,6 +73,9 @@ Map copyMapAsNew(Map srcMap) {
 	newMap.width = srcMap.width;
 	newMap.height = srcMap.height;
 	newMap.map = malloc( sizeof(mapdata_t) * newMap.width * newMap.height );
+	if (newMap.map == NULL) {
+		fputs("SYSTEM ERROR\tCannot alloc memory.",stderr);
+	}
 	for (mapaddr_t i = 0; i < newMap.height; i++) {
 		for (mapaddr_t j = 0; j < newMap.width; j++) {
 			setMapValueAt(newMap, j, i, getMapValueAt(srcMap, j, i));
