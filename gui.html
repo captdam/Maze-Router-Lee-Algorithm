@@ -1,13 +1,8 @@
 <html>
 	<head>
 		<title>Router GUI</title>
-		<script src="./ajax.js"></script>
-		<script src="./map.js"></script>
 	</head>
 	<body>
-		<div id="map"></div>
-		
-		<iframe id="maploader" src="./map.html" style="width:100%; height: calc(100% - 36px);"></iframe>
 		<div>
 			<span style="background-color:#EEEEEE; border:solid #000000 1px; margin:auto 2px">Free</span>
 			<span style="background-color:#000000; border:solid #000000 1px; margin:auto 2px; color:#FFFFFF;">Obstruction</span>
@@ -15,11 +10,18 @@
 			<span style="background-color:#9999F0; border:solid #000000 1px; margin:auto 2px">Tracing wave</span>
 			<span style="background-color:#FF0000; border:solid #000000 1px; margin:auto 2px">Unknown</span>
 		</div>
+		<iframe id="maploader1" src="./map.html" style="width:100%; height: calc(100% - 36px); position: fixed; opacity: 0.5;"></iframe>
+		<!--iframe id="maploader2" src="./map.html" style="width:100%; height: calc(100% - 36px); position: fixed; opacity: 0.5;"></iframe-->
 		<script>
-
-setInterval( () => {
-	document.getElementById("maploader").src += '';
-},500);
+	refresh = 200; //Modify this line if gui_delay in config.cfg is smaller than 400
+	setInterval( () => {
+		document.getElementById("maploader1").src += '';
+	},refresh);
+	/* setTimeout( () => {
+		setInterval( () => {
+			document.getElementById("maploader2").src += '';
+		},refresh);
+	}, refresh/2); */
 
 		</script>
 	</body>
