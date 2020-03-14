@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BUFFER_SIZE 255
-
 //Read a file contains map size, obstructions and nets, return the map
 Map parser(char* filename, mapdata_t *netCount) {
 	

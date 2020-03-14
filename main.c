@@ -1,31 +1,26 @@
-#define MAX_TRY_TIME 20
-
 #define DEBUG 1
 #define DEBUG_PARSER 1
 #define DEBUG_ROUTER_WAVE 0
 #define DEBUG_ROUTER_TRACE 1
-#define DEBUG_ROUTER_INTERRESULT_HTML 1 //Export intermediate result
-#define DEBUG_ROUTER_INTERRESULT_CMD 0 //Print intermediate result
 
-#define MAX_RETRY 2llu //Try MAX_RETRY * netsize times, then choose the provide result
-#define PRIORITY_RANDOM_POSSIBILITY 80 //Possibility = PRIORITY_RANDOM_POSSIBILITY / 255
-/*
- * Shuffle the netlist may give better result
-*/
+#define BUFFER_SIZE 255
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
+
+unsigned long int UIDELAY = 0;
+unsigned short int PRIORITY_RANDOM_POSSIBILITY = 80;
+unsigned short int NEIGHBOR_RANDOM_POSSIBILITY = 80;
+unsigned short int GUI_INTERRESULT = 0;
+unsigned long long int MAX_RETRY_INDEX = 2;
 
 #include "map.c"
 #include "xmap.c"
 #include "parser.c"
 #include "map2html.c"
-
-unsigned long int uiDelay = 0;
 
 void displayMap(Map);
 uint8_t router(Map, mapdata_t);
@@ -41,48 +36,79 @@ int main(int argc, char* argv[]) {
 		fputs("Missing argument 1: Input net file name.\n",stderr);
 		return -1;
 	}
+	char* netfile = argv[1];
 	
-	//What is the interval of map file generation (wait for x seconds after generating map file)? If 0, do not generate map file.
-	if (argc > 2) {
-		if ( sscanf(argv[2]," %lu ",&uiDelay) > 0 ) {
-			printf("GUI enabled, UI delay is %lu second(s).\n",uiDelay);
-		}
-		else {
-			fputs("Argument 2 syntax error: UI delay should be an integer.\n",stderr);
-			return -1;
-		}
-	}
-	
-	//If generate map file, what browser to use? (Firefox or Chrome)
-	if (uiDelay) {
-		if (!(argc > 3)) {
-			fputs("Missing argument 3: Browser path.\n",stderr);
-			return -1;
-		}
-		char cmd[ strlen(argv[3]) + strlen(" -new-window ./gui.html") + 3 ];
-		strcpy(cmd,"\"");
-		strcat(cmd,argv[3]);
-		strcat(cmd,"\"");
-		strcat(cmd," -new-window ./gui.html"); //This works with Firefox, but not with Chrome
-		system(cmd);
-	}
-	
+	//Get current time
 	time_t currentTime;
-	srand(time(&currentTime));
+	time(&currentTime);
 	struct tm* localTime = localtime(&currentTime);
 	printf("Task start: %s\n",asctime(localTime));
+	
+	//Random seed
+	if (argc > 2) {
+		unsigned short int seed = argv[2][0];
+		srand(seed);
+		printf("Using seed %hu\n",seed);
+	}
+	else {
+		srand(time(NULL)); //Get current time, and use it as random seed
+		puts("Using default seed (time).");
+	}
+	
+	//Get config
+	FILE* fp = fopen("./config.cfg","r");
+	if (!fp) {
+		puts("Cannot read config file. Using default config.");
+	}
+	
+	char buffer[BUFFER_SIZE];
+	char setting[BUFFER_SIZE];
+	while ( fgets(buffer,sizeof buffer, fp) != NULL) {
+		if (buffer[0] == '#' || strlen(buffer) < 5) //Skip comments
+			continue;
+		
+		//GUI browser config
+		if ( sscanf(buffer," gui_path_command = *%[^*]s* ",&setting) > 0 ) {
+			if (strcmp(setting,"manual") == 0) {
+				puts("Manual mode, GUI not auto opened.");
+			}
+			else {
+				char cmd[BUFFER_SIZE];
+				sprintf(cmd,setting,"gui.html");
+				system(cmd);
+				puts("Browser mode, GUI opened.");
+			}
+		}
+		
+		else if ( sscanf(buffer," gui_delay = %lu ",&UIDELAY) ) {}
+		else if ( sscanf(buffer," gui_interresult = %hu ",&GUI_INTERRESULT) ) {}
+		else if ( sscanf(buffer," max_retry_index = %llu ",&MAX_RETRY_INDEX) ) {}
+		else if ( sscanf(buffer," priority_random_index = %hu ",&PRIORITY_RANDOM_POSSIBILITY) ) {}
+		else if ( sscanf(buffer," neighbor_random_index = %hu ",&NEIGHBOR_RANDOM_POSSIBILITY) ) {}
+	}
+	fclose(fp);
+		
+	printf("GUI delay: %lu ms.\n",UIDELAY);
+	printf("Max retry index: %llu .\n",MAX_RETRY_INDEX);
+	printf("Possibility to shuffle the net priority: %hu / 255.\n",PRIORITY_RANDOM_POSSIBILITY);
+	printf("Possibility to take different neighbor: %hu / 255.\n",NEIGHBOR_RANDOM_POSSIBILITY);
+	
+	if (GUI_INTERRESULT) puts("Export intermediate result (wave) to GUI.");
+	else puts("Skip to export intermediate result (wave) to GUI.");
+	
+	puts("");
 
 /*******************************************************************************
 2 - Read the empty map and netlist, empty map contains only obstructions
 *******************************************************************************/
 
-	printf("Reading netsfile: %s\n",argv[1]);
+	printf("Reading netsfile: %s\n",netfile);
 
 	mapdata_t netsize;
-	Map emptyMap = parser(argv[1],&netsize);
-	puts("\nInit map:");
-	displayMap(emptyMap);
-	saveMap(emptyMap,uiDelay,"Init.");
+	Map emptyMap = parser(netfile,&netsize);
+	saveMap(emptyMap,UIDELAY,"Init.");
+//	puts("\nInit map:");
+//	displayMap(emptyMap);
 
 /*******************************************************************************
 3 - Router routine
@@ -96,7 +122,7 @@ int main(int argc, char* argv[]) {
 	Map workspaceMap = copyMapAsNew(emptyMap);
 	
 	char guiSignal[200];
-	unsigned long long int maxRunCount = MAX_RETRY * netsize;
+	unsigned long long int maxRunCount = MAX_RETRY_INDEX * netsize;
 	for (unsigned int currentTry = 0; currentTry < maxRunCount; currentTry++) {
 		printf("\n===== RUN %llu/%llu ==============================\n",(unsigned long long int)(currentTry+1),maxRunCount);
 		copyMapM2M(workspaceMap,emptyMap);
@@ -134,8 +160,8 @@ int main(int argc, char* argv[]) {
 			placedCount++;
 			sprintf(guiSignal, "Net %llu placed. 1/%llu placed.", (unsigned long long int) placedCount, (unsigned long long int) netsize);
 			puts(guiSignal);
-			displayMap(workspaceMap);
-			saveMap(workspaceMap,uiDelay,guiSignal);
+//			displayMap(workspaceMap);
+			saveMap(workspaceMap,UIDELAY,guiSignal);
 		}
 		else { //Fail
 			puts("Unable to place any net. Retry..."); //We have no net placed in this run
@@ -150,8 +176,8 @@ int main(int argc, char* argv[]) {
 				placedCount++;
 				sprintf(guiSignal,"Net %llu placed. %llu/%llu placed.",(unsigned long long int) netlist[i], (unsigned long long int) placedCount, (unsigned long long int) netsize);
 				puts(guiSignal);
-				displayMap(workspaceMap);
-				saveMap(workspaceMap,uiDelay,guiSignal);
+//				displayMap(workspaceMap);
+				saveMap(workspaceMap,UIDELAY,guiSignal);
 				
 				if (placedCount > bestMapNetCount) { //Better solution found
 					printf("Better solution found. %llu nets placed.\n",(unsigned long long int)placedCount);
@@ -171,10 +197,9 @@ int main(int argc, char* argv[]) {
 			
 				sprintf(guiSignal,"Net %llu failed. %llu/%llu placed. Retry...",(unsigned long long int) netlist[i], (unsigned long long int) placedCount, (unsigned long long int) netsize);
 				puts(guiSignal);
-				displayMap(workspaceMap);
-				saveMap(workspaceMap,uiDelay,guiSignal);
+//				displayMap(workspaceMap);
+				saveMap(workspaceMap,UIDELAY,guiSignal);
 				
-				destroyMap(workspaceMap);
 				nestLoopSignal = 2; //Quit current run
 				break;
 			}
@@ -187,8 +212,8 @@ int main(int argc, char* argv[]) {
 	puts("\n===== PROCESS END ==============================");
 	sprintf(guiSignal,"Final result: %llu nets placed",(unsigned long long int) bestMapNetCount);
 	puts(guiSignal);
-	displayMap(bestMap);
-	saveMap(bestMap,uiDelay,guiSignal);
+//	displayMap(bestMap);
+	saveMap(bestMap,UIDELAY,guiSignal);
 	
 	destroyMap(bestMap);
 	destroyMap(workspaceMap);
@@ -369,15 +394,15 @@ uint8_t router(Map map, mapdata_t netID) {
 		
 		copyMapM2M(map,newMap);
 
-#if(DEBUG_ROUTER_INTERRESULT_CMD)
+#if(DEBUG_ROUTER_WAVE)
 		printf("> Placed %llu slots.\n",placeWave);
-		displayMap(map);
+//		displayMap(map);
 #endif
-#if(DEBUG_ROUTER_INTERRESULT_HTML)	
-		char guiSignal[200];
-		sprintf(guiSignal,"Net %llu waving...",(unsigned long long int) netID);
-		saveMap(map,uiDelay,guiSignal);
-#endif
+		if (GUI_INTERRESULT) {
+			char guiSignal[200];
+			sprintf(guiSignal,"Net %llu waving...",(unsigned long long int) netID);
+			saveMap(map,UIDELAY,guiSignal);
+		}
 
 	} while (placeWave);
 

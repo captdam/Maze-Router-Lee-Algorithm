@@ -8,13 +8,6 @@
  * Consider map.c as a ganaral map libeary, and this is an router extension
 */
 
-#define NEIGHBOR_RANDOM_POSSIBILITY 125 //Possibility = NEIGHBOR_RANDOM_POSSIBILITY / 255
-/* About random:
- * In some operation, only the last element in the slots array (which is the left neighbor) will be used.
- * In some case, another neighbor may be better option.
- * Therefore, we shuffle the array to allow different neighbor to be used.
-*/
-
 //Clean a map, remove all waves
 void cleanMap(Map map) {
 	for (mapaddr_t i = 0; i < map.height; i++) {

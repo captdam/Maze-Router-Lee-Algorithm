@@ -1,4 +1,4 @@
-//Save map as HTML file, and delay for delayTime seconds (so the html get time to render it). If delay is 0, no map will be saved
+//Save map as HTML file, and delay for delayTime miniseconds (so the html get time to render it)
 /* NOTE:
  * The gui.html will constantly pull new map from the map file to display it.
  * Due to new CORS pilicy on local HTML file, JS can no longer read XHR content.
@@ -8,9 +8,6 @@
 #define MAP_OUTPUT_FILE "./map.html"
 
 void saveMap(Map map, unsigned long int delayTime, char* signal) {
-	if (!delayTime)
-		return ;
-	
 	FILE* fp = fopen(MAP_OUTPUT_FILE,"w");
 	fputs("<!DOCTYPE html><html>",fp);
 	
@@ -48,12 +45,14 @@ void saveMap(Map map, unsigned long int delayTime, char* signal) {
 		fputs("</tr>",fp);
 	}
 	fputs("</table>",fp);
-	fprintf(fp,"<div>%s</div>",signal);
-	fputs("</html>",fp);
 	
+	fprintf(fp,"<div>%s</div>",signal);
+	
+	fputs("</html>",fp);
 	fclose(fp);
 	puts("--> Map exported.");
 	
-	if (delayTime != (unsigned long int)-1)
-		sleep(delayTime);
+	
+	struct timespec t = {0, delayTime*1000000};
+	nanosleep(&t,NULL);
 }
