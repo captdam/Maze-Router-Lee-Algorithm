@@ -40,7 +40,7 @@ Then, copy the config file and GUI file to the same directory as the executable 
 ```cp ./gui.html ../bin/gui.html```
 
 # Executing the program
-Before run the program, first check the config file, especilly the ```gui_path_command``` setting. Description is given in the config file.
+Before run the program, first check the config file, especially the ```gui_path_command``` setting. Description is given in the config file.
 
 After setting the config file, now the program can be executed. To do so, use the following command:
 
@@ -54,6 +54,6 @@ To define the seed, use the following command:
 
 In this case, the program will use the char code of the first character in the second argument as the seed. In another word, the ASCII code of character 'a' will be used to generate random number in the program.
 
-If the ```gui_path_command``` is configed correctly in the config file, a browser window should pop-up, displaying a table. As the program runs, the table will be changed to illustrate how the software finding the solution for the maze routing. If ```gui_interresult``` is configed to 1 in the config file, the browser will show how the program apply the Lee algrothem to find the path for each net.
+If the ```gui_path_command``` is configed correctly in the config file, a browser window should pop-up, displaying a table. As the program runs, the table will be changed to illustrate how the software finding the solution for the maze routing. If ```gui_interresult``` is configured to 1 in the config file, the browser will show how the program apply the Lee algorithm to find the path for each net.
 
-Althrough the Lee algorithm guarantees the best solution for a single net if exist, the best solution for multiple nets is unknown. Placing one net may block another net. This is problem is nP-hard. If the program found a way to connect all nets, the process will stop immediately; otherwire, the program will run for several times, depending on the amount of nets and the ```max_retry_index``` setting, then give the best result (which connects most nets).
+Although the Lee algorithm guarantees the best solution for a single net if exist, the best solution for multiple nets is unknown. Placing one net may block another net. This is problem is nP-hard. If the program found a way to connect all nets, the process will stop immediately; otherwire, the program will run for several times, depending on the amount of nets and the ```max_retry_index``` setting, then give the best result (which connects most nets).
