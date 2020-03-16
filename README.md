@@ -92,3 +92,9 @@ For the structure ```Map```, its child ```map``` is used to represent the slots 
 - Wave. This is used when finding the shortest path from net source to net drain using the Lee algorithm. In this case, the first bit (MSB) will be zero, and the remaining bits represent the distance of that slot from the net source.
 - Obstruction. Which means this slot can not be used for any purpose. In this case, the first bit (MSB) will be one, and the remaining bits are all zero.
 - Used by net. This means the slot is occupied by a net. In this case, the first bit (MSB) will be one, and the remaining bits represent the net ID.
+
+### Map-object method
+One way to implement object-oriented method is to pass a pointer of the object structure to the function. This syntax is simular to object-oriented programming using Python.
+```C
+Return_type method(struct object_name* object, other_params…) {…}
+```
