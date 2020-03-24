@@ -225,5 +225,51 @@ The router has successfully route net 1, net 2 and net3; but cannot route net 4.
 
 <img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/randompath_v.jpg" alt="Fail without random" width="300px">
 
-With a random factor added, the length of path for net 1, net 2 and net 3 is not changed; but the router is able to place the path for net 4 as well.
+With a random factor added, the length of path for net 1, net 2 and net 3 is not changed; but the router is able to place the path for net 4 as well. The random factor can be set in the config file. Set the ```neighbor_random_index``` to zero will disable the randomization.
 
+## Lee router
+This section describes the Lee router. The Lee router is a router used to route a single net. For the algorithm used to route the entire nets set, refer to the next section, the ```Main Program (Back-end router)``` which implements the Lee router.
+
+### Step 1 - Finding Source and Sink
+
+### Step 2 - Waveing
+
+### Step 3 - Tracing Back
+
+## Main Program (Back-end Router)
+
+The main program is in ```mian.c```.
+
+### Step 1 - Initialization and Read Config
+
+When the user executes the program, the first thing the program will do is to initialize itself, including checking the user input from command line, set the random seed, and load the config file.
+
+The user must give at least one option in the command line to the program, which is the input file’s path. If this option is missed, the program will exit and print error information in ```stderr```.
+
+Second option is optional which is used to set the seed for random number generator. If the user does not provide this option, the program will use current time as the seed of the random number generator. If the user provides the option, the first character of this option will be used. For example, if user’s command is ```./router path_to_net_file.net abc```, then the ASCII code for character ‘a’ will be used. In another word, 0x61 is used s the seed.
+
+If the user gives more than 2 options in the command line, those extra options will be ignored.
+
+The program load config from the config file ```config.cfg``` which is in the same directory as the executable file. The config file is used to define the behavior of the program, such as GUI, delay, random factor etc. If the config file is missed or cannot be read by the program, the program will exit and print error information in ```stderr```.
+
+In the config file, it the ``` gui_path_command``` config is set correctly and not “manual”, the program will call the operating system to open browser to display GUI. No matter the GUI is enabled or disabled or misconfigured, the program will export result file.
+
+### Step 2 - Generate Empty Map
+
+The second step of the program is to read the net file and generate the empty map. The empty map is a map that contains all the obstructions and source and sinks of all nets.
+
+A parser (in ```parser.c```) is used to read the input net file. The parser will return a ```Map``` object that contains the empty map.
+
+The parser first read the first line of the input net file.
+- If this line contains two numbers n and m, the parser will create a rectangle map with size n by m.
+- if this line contains only one number n, the parser will create a square map with size n by n.
+
+After the parser creating the map, the parser begins to search for nets and obstructions line by line.
+- If a line contains only two numbers, these two number are considered x-y position of an obstruction. In this case, the obstruction will be marked on the map. 
+- If a line contains four numbers, the fist two number are considered x-y position for the net source, the last two number are considered x-y position for the net sink. In this case, this net will be assigned an ID (starting from 1) and marked on the map. When marking the map, there is no indication of net sink or source, because electrons can travel in both direction in route; therefore, it is not required to identify the net source and sink.
+The parser also counts for the number of nets, and return the net count to main program by reference.
+
+The following graph shows an empty map:
+TODO #####################################################
+
+### Step 3 - Router
