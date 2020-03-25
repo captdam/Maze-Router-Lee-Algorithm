@@ -283,7 +283,7 @@ However, when the map is crowd, the slots accessed by first method will be just 
 
 ### Step 3 - Tracing Back
 
-After the wave reaches the net sink, the program begins to trace back from the sink to the source to establish the route. When doing this, there may be multiple possible shortest routes, all of them has the same length. In this case, the program uses a random number to determine which path to use. Refer to the ``` Implementation  Data Structure  Map-object Neighbor Wrap Method``` section.
+After the wave reaches the net sink, the program begins to trace back from the sink to the source to establish the route. When doing this, there may be multiple possible shortest routes, all of them has the same length. In this case, the program uses a random number to determine which path to use. Refer to the ``` Implementation --> Data Structure --> Map-object Neighbor Wrap Method``` section.
 
 ## Main Program (Back-end Router)
 
@@ -322,3 +322,27 @@ The following graph shows an empty map:
 TODO #####################################################
 
 ### Step 3 - Router
+
+Now, it is time to route the nets on the maze map. However, before the router begins work, the program will shuffle the net list. In another word, the order of placing net will be different in each try. There is a very small chance that the order remains the same after shuffle due to the random number generator behavior.
+
+The shuffle is done by using a random number, the random factor ```priority_random_index``` can be set in the config file. Set this value to 0 will disable it.
+
+Then, the program will call the router method to route the maze map, one net at a time. If the router can successfully route all nets, the program will export that map as the solution and quit. If the router cannot place all nets, the program will retry for several times until the retry limit is hit or the router successfully placed all the nets. If the retry limit is hit, the program will export the result which placed most of the nets.
+
+When the program retries, the program will shuffle the net list, and:
+- If the first net cannot be placed (for example, the source or net is separated by obstruction), the fist net to place in next try will be a random net.
+- Otherwise, the fist net to place in the next try will be the fail net of last try, because that net is the most difficult one to place.
+
+The reason of shuffling the net list is to find a relatively good order of placing maximum amount of net. Assume there is 5 nets, net 2 go from the most top to most bottom; net 3 go from most left to most right. In another word, net 2 and net 3 will interlock each other’s. Although there is some better algorithm to find the good order, such as recursive walking; using random number is the most simple and computational-friendly way.
+```
+Try 1: 3->5->1->2 (Cannot place net 2, retry. 3 nets placed)
+Try 2: 2->1->3 (Cannot place net 3, retry. 2 nets placed)
+…
+Try X: 1->5->4->2->3 (Cannot place net 3, retry. 4 nets placed)
+…
+Try Z: … (Retry limit reached. Give up.)
+Try X placed maximum amount of nets, using Try X as result.
+```
+
+The max retry limit is determine by both the nets count and the ```max_retry_index``` in the config file.
+
