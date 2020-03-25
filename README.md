@@ -176,7 +176,7 @@ mapdata_t getMapSlotValue(Map checkMap, mapaddr_t x, mapaddr_t y);			//After che
 void cleanMap(Map map);									//Clean a map, remove all waves
 ```
 
-### Map-object Neighbor Wrap method
+### Map-object Neighbor Wrap Method
 
 In the Lee Algorithm, there are lot of operation that requiring the accessing of 4 neighborhood slots of a given slot. Therefore, the ```Map``` object provides a wrap method which accept another custom method. In this wrap method, the wrap method will apply the custom method to all 4 neighborhood slots of the given slot. To pass and retrieve data between the main function and the custom method, the wrap method accepts a pointer to a custom structure. Furthermore, the wrap method check for boundary as well. For example, if the given slot's x position is 0, the wrap will not apply the custom function to its left neighbor.
 ```C
@@ -228,13 +228,62 @@ The router has successfully route net 1, net 2 and net3; but cannot route net 4.
 With a random factor added, the length of path for net 1, net 2 and net 3 is not changed; but the router is able to place the path for net 4 as well. The random factor can be set in the config file. Set the ```neighbor_random_index``` to zero will disable the randomization.
 
 ## Lee router
-This section describes the Lee router. The Lee router is a router used to route a single net. For the algorithm used to route the entire nets set, refer to the next section, the ```Main Program (Back-end router)``` which implements the Lee router.
+
+This section describes the Lee router. The Lee router is a router used to route a single net. For the algorithm used to route the entire nets set, refer to the next section, the ```Main Program (Back-end router)```.
+
+The router method is in ```main.c```. The router will return true (1) if a route for the given net is found, and the route will be marked in the map. If no route can be found, this method returns false (0).
+```C
+uint8_t router(Map map, mapdata_t netID);
+```
 
 ### Step 1 - Finding Source and Sink
 
+The router method accepts two parameters, the map and the net ID.
+
+For each net, there is one source and one sink. The router will scan the entire map and find the x-y positions for both net source and sink according to the net ID paramter.
+
 ### Step 2 - Waveing
 
+Starting from the net source, the router begins to propagate wave. All unmarked (free) map slots near (connected by edge, but not corner) the source will be marked “wave 1”, all unmarked map slots near “wave 1” will be marked as “wave 2”, and so on. The process will continue until the net sink is reached, or no more map slots can be marked.
+```
+run = 0;
+markSlots = [source];
+repeat {
+	run++;
+	markSlots = markSlots.neighbor;
+	foreach (markSlots)
+		markOnMap(mark,run);
+} until( mark.count == 0 || mark.includes(sink) );
+```
+
+This method requires query, or flex-length array to story marked slots in each run. It is easy to implement in high-level language such as JavaScript, Java or Python; however, in C, there is no such flex data structure. There are few solutions:
+- Using fixed-length very big array. This solution consumes a lot of memory. The term “very big” may not be big enough.
+- Using linked list. Hard to program, easy to have memory leak.
+
+Therefore, instead of finding neighbor of marked slots (by using marked slots position), the program finds slots that are neighbor of marked slots (by fully scan the map).
+```
+repeat {
+	markCount = 0;
+	foreach(slot) {
+		if (slot is source.neighbor) {
+			markOnMap(slot,1);
+			markCount++;
+		}
+		if (slot is markedSlot.neighbor) {
+			markOnMap(slot, markedSlot.value + 1);
+			markCount++;
+		}
+	}
+} until (markCount == 0 || sink.is_marked);
+```
+
+The second method requires to scan the entire map in each run, but the first method only access those slots modified by last run and their neighbor. In another word, the first method accesses less slots than the second method in each run. Especially in the first run, the first method only access 4 slots (neighbor of source), but the second method accesses all slots in the map.
+
+However, when the map is crowd, the slots accessed by first method will be just slightly less than the second method. In fact, flex-length array (such as linked list and hash map) has overhead. Assume the program is using linked list to implement the query. When reading the array, the CPU needs to read the ```next``` pointer, then go to fetch the value by pointer. After each run, the program needs to walk through the linked list to destroy (release memory of) the array. Furthermore, linked list is usually saved in HEAP across different memory sectors, which means higher cache miss rate. For the second method, the CPU reads the value and increases the pointer by one (in fact, some CPU can increase pointer and read value in one cycle). The map is saved in HEAP but in same sector, which means higher cache hit rate.
+
 ### Step 3 - Tracing Back
+
+After the wave reaches the net sink, the program begins to trace back from the sink to the source to establish the route. When doing this, there may be multiple possible shortest routes, all of them has the same length. In this case, the program uses a random number to determine which path to use. Refer to the ``` Implementation  Data Structure  Map-object Neighbor Wrap Method``` section.
 
 ## Main Program (Back-end Router)
 
