@@ -346,3 +346,10 @@ Try X placed maximum amount of nets, using Try X as result.
 
 The max retry limit is determine by both the nets count and the ```max_retry_index``` in the config file.
 
+## GUI
+
+### GUI interface
+
+The GUI interface is an HTML file ```gui.html```.
+
+The GUI is inten
