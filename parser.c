@@ -16,24 +16,27 @@ Map parser(char* filename, mapdata_t *netCount) {
 	unsigned long long int fileLine = 0;
 	Map map;
 	mapdata_t netID = 1;
+	uint8_t mapCreated = 0;
 	
 	while ( fgets(buffer,sizeof buffer, fp) != NULL) {
 		printf("Read line %llu: ",fileLine);
 		
 		//First line: map size
-		if (!fileLine) {
+		if (!mapCreated) {
 			unsigned long long int mapSizeX, mapSizeY;
-			if ( sscanf(buffer," %llu %llu ",&mapSizeX,&mapSizeY) > 1 ) {
+			if ( sscanf(buffer," %llu x %llu ",&mapSizeX,&mapSizeY) > 1 ) {
 #if(DEBUG_PARSER)
 				printf("Get map size: %llu * %llu.",mapSizeX,mapSizeY);
 #endif
 				map = createMap((mapaddr_t)mapSizeX,(mapaddr_t)mapSizeY);
+				mapCreated = 1;
 			}
 			else if ( sscanf(buffer," %llu ",&mapSizeX) > 0 ) {
 #if(DEBUG_PARSER)
 				printf("Get map size: %llu.",mapSizeX);
 #endif
 				map = createMap((mapaddr_t)mapSizeX,(mapaddr_t)mapSizeX);
+				mapCreated = 1;
 			}
 			else {
 				fputs("Skip",stdout);
