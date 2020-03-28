@@ -19,7 +19,9 @@ Map parser(char* filename, mapdata_t *netCount) {
 	uint8_t mapCreated = 0;
 	
 	while ( fgets(buffer,sizeof buffer, fp) != NULL) {
+#if(DEBUG_PARSER)
 		printf("Read line %llu: ",fileLine);
+#endif
 		
 		//First line: map size
 		if (!mapCreated) {
@@ -39,7 +41,9 @@ Map parser(char* filename, mapdata_t *netCount) {
 				mapCreated = 1;
 			}
 			else {
+#if(DEBUG_PARSER)
 				fputs("Skip",stdout);
+#endif
 			}
 		}
 		
@@ -61,11 +65,15 @@ Map parser(char* filename, mapdata_t *netCount) {
 				netID++;
 			}
 			else {
+#if(DEBUG_PARSER)
 				fputs("Skip",stdout);
+#endif
 			}
 		}
-		
+
+#if(DEBUG_PARSER)
 		puts("");
+#endif
 		fileLine++;
 	}
 	
