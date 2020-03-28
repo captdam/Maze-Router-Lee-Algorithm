@@ -77,18 +77,6 @@ This program can be divided into two parts, the back-end routing program and the
 
 When the user executes the program with GUI enabled and intermediate result exportation enabled, the program will first open the GUI. Then, the GUI will constantly be polling the result file and display the maze map and the router’s progress in the GUI window. At the same time, the program will apply the Lee Algorithm and generate result file. In this way, when there is any progress done by the back-end router, the back-end router will export the result file, and the front-end GUI poll it and display it on the screen.
 
-However, the front-end/back-end architecture brings a critical issue. The GUI is running in web browser, which means the GUI is running in a sandbox. The GUI may read file, but it cannot write file. In another word, the back-end and front-end is communicate in a single-way link. Because the GUI cannot send signal to the router, the router may modify the result file while the GUI is reading it.
-
-The original solution is to have a JavaScript checker on the front-side. Every time when the front-end GUI reading the result file, the checker will first check the integrity of the result file. If this file is not modified by the back-end during reading, the result will be displayed; if it is modified, the checker discard it.
-
-This solution works fine few years ago, when CORS in Firefox is not strict as today. However, for modern web browser, this solution is not allowed for security reason. If a JavaScript program can read a file from local file system, it can send the local file to a remote server. This means, critical information saved in local file (for example, the ```/etc/passwd```) can be stolen. Therefore, the checker solution will not work.
-
-To accompany with the CORS policy, the only solution is to create a local web server on the user’s machine so an HTML ```Access-Control-Allow-Origin``` can be send alone with the GUI file. However, it is not worth to pack such a complex web server with the program.
-
-The final solution is to let the back-end router export result as a table in HTML file, and let the front-end GUI use a ```<iframe>``` tag to embed the result HTML file. In this way, the front-end GUI can display the maze map, and there is no JavaScript reading the result file to breach the CORS rule. There still is chance that the back-end router modifies the result file while the front-end GUI read it. In this case, the false file with bad HTML syntax will be read and provided a blank screen in the GUI.
-
-In experiment, Chrome seems to have poor performance than Firefox in Win10; Firefox in Linux seems to ignore the false result file because no blank screen has been reported on Linux. This is not confirmed, because the hardware used on Windows and Linux test machine is different.
-
 ```
 ----------                           ------------                     -------
 | Router |  ---- Export result --->  | map.html |  ---- Polling --->  | GUI | 
@@ -185,36 +173,22 @@ void applyNeighbor(Map map, mapaddr_t selfX, mapaddr_t selfY, void (*function)()
 
 There is an example of using the wrap method:
 ```C
-struct traceBackinitDataXch { //The custom structure used to pass and retrieve information
-	mapaddr_t traceX;
-	mapaddr_t traceY;
-	mapdata_t traceWave;
-	uint8_t pathReached;
+struct xDataXch { //The custom structure used to pass and retrieve information
+	mapaddr_t data1;
+	uint8_t data2;
 };
-void traceBackInit(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) { //The custom method
-	if (getMapSlotType(map,x,y) == mapslot_wave) {
-		mapdata_t traceWave = getMapSlotValue(map,x,y);
-		if ( (*(struct traceBackinitDataXch*)dataStruct).pathReached == 0 ) {
-			(*(struct traceBackinitDataXch*)dataStruct).pathReached = 1;
-			(*(struct traceBackinitDataXch*)dataStruct).traceWave = traceWave;
-			(*(struct traceBackinitDataXch*)dataStruct).traceX = x;
-			(*(struct traceBackinitDataXch*)dataStruct).traceY = y;
-		}
-		else { //Multiple path reached, find the one with lowest cost
-			if (traceWave < (*(struct traceBackinitDataXch*)dataStruct).traceWave) {
-				(*(struct traceBackinitDataXch*)dataStruct).traceWave = traceWave;
-				(*(struct traceBackinitDataXch*)dataStruct).traceX = x;
-				(*(struct traceBackinitDataXch*)dataStruct).traceY = y;
-			}
-		}
-	}
+void xFunction(Map map, mapaddr_t x, mapaddr_t y, void* dataStruct) { //The custom method
+	(*(struct xDataXch*)dataStruct).data1 = doSomething1();
+	(*(struct xDataXch*)dataStruct).data2 = doSomething2();
 }
 
-struct traceBackinitDataXch dataXch; //Init the custom structure
-dataXch.pathReached = 0;
-applyNeighbor(map, 2, 3, traceBackInit, &dataXch); //Apply the wrap method at map(2,3)
+struct xDataXch dataXch; //Init the custom structure
+dataXch.data2 = 0;
+applyNeighbor(map, 2, 3, xFunction, &dataXch); //Apply the wrap method at map(2,3)
 
-if (dataXch.pathReached) {Something();} //Using the data retrieved from the custom method
+if (dataXch.data2) { //Using the data retrieved from the custom method
+	doSomething3(dataXch.data1);
+}
 ```
 
 The wrap also comes with a random factor. In this wrap method, the wrap applies the custom method on all 4 neighbor slots. However, if there is any conflict, the result comes from the last or first applied slot will win. Sometime, this may lead to a poor result. Consider the following situation:
@@ -334,22 +308,60 @@ When the program retries, the program will shuffle the net list, and:
 - Otherwise, the fist net to place in the next try will be the fail net of last try, because that net is the most difficult one to place.
 
 The reason of shuffling the net list is to find a relatively good order of placing maximum amount of net. Assume there is 5 nets, net 2 go from the most top to most bottom; net 3 go from most left to most right. In another word, net 2 and net 3 will interlock each other’s. Although there is some better algorithm to find the good order, such as recursive walking; using random number is the most simple and computational-friendly way.
-```
-Try 1: 3->5->1->2 (Cannot place net 2, retry. 3 nets placed)
-Try 2: 2->1->3 (Cannot place net 3, retry. 2 nets placed)
-…
-Try X: 1->5->4->2->3 (Cannot place net 3, retry. 4 nets placed)
-…
-Try Z: … (Retry limit reached. Give up.)
+
+| Try | Placement order | Comment |
+| --- | --- | --- |
+| Try 1 | 3->5->1->2 | Cannot place net 2, retry. 3 nets placed |
+| Try 2 | 2->1->3 | Cannot place net 3, retry. 2 nets placed |
+| ... | ... | ... |
+| Try X | 1->5->4->2->3 | Cannot place net 3, retry. 4 nets placed |
+| ... | ... | ... |
+| Try Z | ... | Retry limit reached. Give up |
+
 Try X placed maximum amount of nets, using Try X as result.
-```
 
 The max retry limit is determine by both the nets count and the ```max_retry_index``` in the config file.
 
 ## GUI
 
-### GUI interface
+### GUI
 
 The GUI interface is an HTML file ```gui.html```.
 
-The GUI is inten
+As describe in ``` Implementation --> Program Architecture``` section, the front-end GUI of this program is a webpage. The back-end router program will route the net and generate map file; the front-end GUI will read the map file and display it on screen.
+
+However, the front-end/back-end architecture brings a critical issue. The GUI is running in web browser, which means the GUI is running in a sandbox. The GUI may read file, but it cannot write file. In another word, the back-end router GUI and the front-end GUI are communicating in a single-way link. The issue is that, the GUI cannot send signal to the router; therefore, the router may modify the result file while the GUI is reading it. 
+
+The original solution is to have a JavaScript checker on the front-side. Every time when the front-end GUI reading the result file, the checker will first check the integrity of the result file. If this file is not modified by the back-end router during reading, the result will be displayed; if it is modified, the checker discards it.
+
+This solution works fine few years ago, when CORS in Firefox is not strict as today (At that time, there was CORS, but Firefox allows local HTML files to read file in the same directory or subdirectories). However, nowadays, this solution is no longer available due to security reason. If a JavaScript program can read a file from local file system, it can send the local file to a remote server. This means, if a user downloads an HTML file, critical information saved in downloading directory can be stolen (for example, a user may have a key file downloaded from another website). Therefore, the checker solution will not work.
+
+To accompany with the CORS policy, the only solution is to create a local web server on the user’s machine so an HTTP ```Access-Control-Allow-Origin``` can be send with the GUI file. However, it is not worth to pack such a complex web server with the program.
+
+The final solution is to let the back-end router to export the result as a table in HTML file and let the front-end GUI to use a ```<iframe>``` tag to embed the result HTML file.
+
+In this architecture, the result file can be embedded in the GUI directly by the DOM. There is no JavaScript program involved in this process; therefore, the CORS rule is not breached. To do this, the back-end router needs to export the result as a displayable HTML file so it can be directly displayed. This method is saved in ```map2html.c```.
+
+However, there is still chance of write-while-read. In this case, the result file will have a bad HTML syntax. What the user see will be a blank screen in the GUI. This will affect the user experience, but it is not fatal.
+
+
+### Setting the GUI
+
+Generally speaking, the back-end router is extremely fast. To illustrate the progress of the router, the router has to implement a delay function at each step; otherwise, the result will be found instantly.
+
+By default, the back-end router exports the result at a rate of around 2.5 results per second. If the map size is large, the rate my drop a little bit. The can be changed by editing the ``` gui_delay ```  config.
+
+The front-end GUI is constantly polling the result file. To ensure the front-end GUI polls all the progress, the rate of polling should be equal or higher to double of the rate of back-end GUI (according to the Nyquist theorem). By default, the rate is 5 sampling per second.
+
+If the user wants to modify the sampling rate of the front-end GUI, the user has to modify the ```gui.html``` file. In this file, modify the value of ```refresh```:
+```html
+refresh = 200; //Modify this line if gui_delay in config.cfg is smaller than 400
+
+setInterval( () => {
+
+document.getElementById("maploader1").src += '';
+
+},refresh);
+```
+
+On some low-performance machine, user may experience heave lag in the GUI. In this case, the user should slow down both rates.
