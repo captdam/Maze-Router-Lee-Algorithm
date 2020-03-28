@@ -4,6 +4,8 @@
  
 This program is an implementation of the Lee Algorithm in C language for single layer universal cost maze map.
 
+The code of this program has been tested on Windows 10 64-bit (compiled by MinGW GCC) and Ununtu 64-bit. It should work on other versions of Windows and Linux system. Web browser is required for GUI.
+
 
 # Using the program
 
@@ -37,6 +39,8 @@ router_root
 
 To install this program, first go to the router_root/src directory, and using GCC to compile the C files:
 
+```cd src```
+
 ```gcc -o3 ./main.c -o ../bin/router```
  
 Then, copy the config file and GUI file to the same directory as the executable file. In Linux, use the following command:
@@ -49,25 +53,43 @@ Now, there should be 3 files in the ```bin``` directory, the executable file ```
 
 ## Executing the program
 
-Before run the program, first check the config file, especially the ```gui_path_command``` setting. Description is given in the config file.
+Before executing the program, user should first check the config file, especially the ```gui_path_command``` setting. Description is given in the config file.
+
+The program can be executed in 3 modes:
+
+| Mod | ``` gui_path_command``` | ``` gui_interresult``` | Comment |
+|---|---|---|---|
+| 1 | path_to_browser | 0 | GUI shows how the router place nets in order |
+| 2 | path_to_browser | 1 | GUI shows how the router place nets in order and propagate the wave |
+| 3 | manual | done_not_care | GUI will not open automatically |
+
+Note: In mode 3, GUI will not be opened automatically, but the result file will always be exported. Depending on the ```gui_ interresult``` setting, the program exports result every time the router place a net, or every time the router place a net and propagate the wave. This is helpful during debugging. If the user wants no GUI, it is recommended to set the ```gui_dely``` to 0. Therefore, the program will not pause every time when a result file (including intermediate result file) generated.
 
 After setting the config file, now, the program can be executed. To do so, use the following command:
 
 ```./router path_to_input.nets```
 
-In this case, the software will use a random seed (in fact, it is the current time) to define the behaviour of random number generator used in the program.
+The first argument of the program defines the input netsfile’s location. The net file is a human-readable text file contains map size, x-y position of obstruction and x-y position of net source and sink. An example of netsfile is given below:
 
-To define the seed, use the following command:
+```
+20 //The first line defines the size of the maze map. In this case, a 10 by 10 square maze
+20 x 15 //For rectangular maze, user a “x” to separate the width and height
+obstruction 3 12 //x position of an obstruction, y position of that obstruction
+obstruction 18 13
+net 3 12 12 5 //Net source x-y position, net sink x-y position
+```
+
+If there is no second argument, the software will use a random seed (in fact, it is the current time) to define the behaviour of random number generator used in the program. To define the seed, use the following command:
 
 ``` ./router path_to_input.nets abc```
 
 In this case, the program will use the char code of the first character in the second argument as the seed. In another word, the ASCII code of character 'a' will be used to generate random number in the program.
 
-If the ```gui_path_command``` is configed correctly in the config file, a browser window should pop-up, displaying a table. As the program runs, the table will be changed to illustrate how the software finding the solution for the maze routing. If ```gui_interresult``` is configured to 1 in the config file, the browser will show how the program apply the Lee algorithm to find the path for each net.
+If the ```gui_path_command``` is configed correctly in the config file, a browser window should pop-up, displaying a table. As the program runs, the table will be changed to illustrate how the software finding the solution for the maze routing. If ```gui_interresult``` is configured to 1 in the config file, the GUI will show how the program propagate the wave.
 
 Although the Lee algorithm guarantees the shortest path for a single net if exist, the best solution for multiple nets is unknown. Placing one net may block another net. This problem is nP-hard. If the program found a way to connect all nets, the process will stop immediately; otherwire, the program will run for several times, depending on the amount of nets and the ```max_retry_index``` setting, then give the best result (which connects most nets).
 
-After the program finding the best solution, the best solution should be displayed in the GUI window. Meanwhile, the result will be saved as an HTML table in ```map.html``` in the same directory as the executable file. The result will be saved in file even if GUI is disabled. By doing so, user can use some text processing tool or software to read the result file for other programs.
+After the program finding the best solution, the best solution should be displayed in the GUI window. Meanwhile, the result will be saved as an HTML table in ```map.html``` in the same directory as the program. The result will be saved in file even if GUI is disabled. By doing so, user can use some text processing tool or software to read the result file for other programs.
 
 # Implementation
 
@@ -75,7 +97,7 @@ After the program finding the best solution, the best solution should be display
 
 This program can be divided into two parts, the back-end routing program and the front-end GUI. The back-end routing program is implemented in C, because program write in C has higher performance. When the given maze map and nets count are large, C program generally takes way less runtime compare to programs in other languages. The front-end GUI is implemented HTML with embedded CSS, because HTML/CSS GUI is extremely easy to write.
 
-When the user executes the program with GUI enabled and intermediate result exportation enabled, the program will first open the GUI. Then, the GUI will constantly be polling the result file and display the maze map and the router’s progress in the GUI window. At the same time, the program will apply the Lee Algorithm and generate result file. In this way, when there is any progress done by the back-end router, the back-end router will export the result file, and the front-end GUI poll it and display it on the screen.
+When the user executes the program with GUI enabled, the program will first open the GUI. Then, the GUI will constantly be polling the result file and display the maze map and the router’s progress in the GUI window. At the same time, the program will apply the Lee Algorithm and generate result file. In this way, when there is any progress done by the back-end router, the back-end router will export the result file, and the front-end GUI poll it and display it on the screen.
 
 ```
 ----------                           ------------                     -------
@@ -87,7 +109,7 @@ When the user executes the program with GUI enabled and intermediate result expo
 
 ### Map-object Structure
 
-Although C is not an object-orientation programming language, object-orientation programming can be manually achieved. In this program, a ```Map``` object is used to represent the maze map. The ```Map``` structures contains three elements, the height of the map, the width of the map, and the slots of the map. The structure of is given below:
+Although C is not an object-orientation programming language, object-orientation programming can be manually achieved. In this program, a ```Map``` object is used to represent the maze map. The ```Map``` structures contains three elements, the height of the map, the width of the map, and the slots of the map. The structure of ```Map``` object is given below:
 ```C
 typedef struct Map {
 	mapaddr_t width;
@@ -108,7 +130,7 @@ Type ```mapdata_t``` is used to describe the content of each map slot. This incl
 2 ^ bit_length( mapdata_t ) >= 2 * max( count( map_size ) , count( nets_size ) )
 ```
 
-For the structure ```Map```, its child ```map``` is used to represent the slots of the map. ```map``` is a 1-D array, the index of the array is used to represent the x-y position of that slot. For example, to ```map[ y * Map.length + x ]``` is used to access the slot at ```(x,y)```.
+For the structure ```Map```, its child ```map``` is used to represent the slots of the map. ```map``` is a 1-D array, the index of the array is used to represent the x-y position of that slot. For example, to ```map[ y * Map.width + x ]``` is used to access the slot at ```(x,y)```.
 
 Each slot can be one of the following types:
 - Free. Which means this slot is free to use for any net. All bits will be zero in this case.
@@ -130,10 +152,10 @@ typedef enum mapslot_type {
 
 One way to implement object-oriented method is to pass a pointer of the object structure to the function. This syntax is simular to object-oriented programming using Python.
 ```C
-Return_type method(struct object_name* object, other_params…) {…}
+return_type method_name (struct object_type* object_name, params…) {…}
 ```
 
-In this program, there are two constructors defined for the ```Map``` object in ```map.c``` and ```xmap.c```. These constructors will ask the system to allocate memory to hold the maze map and return a ```Map``` object.
+In this program, there are two constructors defined for the ```Map``` object in ```map.c```. These constructors will ask the system to allocate memory to hold the maze map and return a ```Map``` object.
 ```C
 Map createMap(mapaddr_t width, mapaddr_t height);	//To create an empty map, all slots in this map are empty (not used)
 Map copyMapAsNew(Map srcMap);				//To create a map exactly like the given map
@@ -152,7 +174,7 @@ mapdata_t getMapValueAt(Map readMap, mapaddr_t x, mapaddr_t y);			//Get the cont
 void setMapValueAt(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t value);	//Set the content of a slot in the map, using x-y position
 ```
 
-There are some methods that are designed for main program to interact with the ```Map``` object. One thing needs to mention is, although these methods accept the ```Map``` object by value, the ```Map``` object contains a pointer to the map slots. Therefore, the ```Map``` object is pass by reference in fact. Modify the map slots inside method affect the map slots outside of the method.
+There are some methods that are designed for main program to interact with the ```Map``` object. One thing needs to mention is, although these methods accept the ```Map``` object by value, the ```Map``` object contains a pointer to the map slots. Therefore, the map slots are pass by reference in fact. Modify the map slots inside method affect the map slots outside of the method.
 ```C
 void copyMapM2M(Map destMap, Map srcMap);						//To copy the content of one map to another, without create a new one, map should be same size
 void setMapSlotObstruction(Map writeMap, mapaddr_t x, mapaddr_t y);			//Set a slot to be obstruction
@@ -195,11 +217,11 @@ The wrap also comes with a random factor. In this wrap method, the wrap applies 
 
 <img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/randompath_x.jpg" alt="Fail without random" width="300px">
 
-The router has successfully route net 1, net 2 and net3; but cannot route net 4. Assume the router are finding route from up-left to bottom-right. As the map shows, vertical path has higher priority than horizontal path when the router place route for net 1. However, this blocks the path for net 4. If the router can place the path as the read lines shows, all 4 nets can be successfully placed.
+The router has successfully route net 1, net 2 and net3; but cannot route net 4. For net 1, assume the left-bottom is source and the right-up is the sink. As the map shows, vertical path has higher priority than horizontal path when the router place route for net 1. However, this blocks the path for net 4. If the router can place the path as the rad lines, all 4 nets can be successfully placed.
 
 <img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/randompath_v.jpg" alt="Fail without random" width="300px">
 
-With a random factor added, the length of path for net 1, net 2 and net 3 is not changed; but the router is able to place the path for net 4 as well. The random factor can be set in the config file. Set the ```neighbor_random_index``` to zero will disable the randomization.
+With a random factor added, the router is able to place all 4 nets. The random factor can be set in the config file. Set the ```neighbor_random_index``` to zero will disable the randomization.
 
 ## Lee router
 
@@ -221,13 +243,13 @@ For each net, there is one source and one sink. The router will scan the entire 
 Starting from the net source, the router begins to propagate wave. All unmarked (free) map slots near (connected by edge, but not corner) the source will be marked “wave 1”, all unmarked map slots near “wave 1” will be marked as “wave 2”, and so on. The process will continue until the net sink is reached, or no more map slots can be marked.
 ```
 run = 0;
-markSlots = [source];
+markedSlots = [source];
 repeat {
 	run++;
-	markSlots = markSlots.neighbor;
-	foreach (markSlots)
-		markOnMap(mark,run);
-} until( mark.count == 0 || mark.includes(sink) );
+	markedSlots = markedSlots.neighbor;
+	foreach (markedSlots)
+		markOnMap(markedSlots.elements,run);
+} until( markedSlots.count == 0 || markedSlots.includes(sink) );
 ```
 
 This method requires query, or flex-length array to story marked slots in each run. It is easy to implement in high-level language such as JavaScript, Java or Python; however, in C, there is no such flex data structure. There are few solutions:
@@ -238,13 +260,13 @@ Therefore, instead of finding neighbor of marked slots (by using marked slots po
 ```
 repeat {
 	markCount = 0;
-	foreach(slot) {
-		if (slot is source.neighbor) {
-			markOnMap(slot,1);
+	foreach(mapSlots) {
+		if (mapSlots.element is source.neighbor) {
+			markOnMap(mapSlots.element,1);
 			markCount++;
 		}
-		if (slot is markedSlot.neighbor) {
-			markOnMap(slot, markedSlot.value + 1);
+		else if (mapSlots.element is markedSlots.element.neighbor) {
+			markOnMap(mapSlots.element, markedSlots.element.value + 1);
 			markCount++;
 		}
 	}
@@ -267,15 +289,15 @@ The main program is in ```mian.c```.
 
 When the user executes the program, the first thing the program will do is to initialize itself, including checking the user input from command line, set the random seed, and load the config file.
 
-The user must give at least one option in the command line to the program, which is the input file’s path. If this option is missed, the program will exit and print error information in ```stderr```.
+The user must give at least one argument in the command line to the program, which is the input file’s path. If this argument is missed, the program will exit and print error information in ```stderr```.
 
-Second option is optional which is used to set the seed for random number generator. If the user does not provide this option, the program will use current time as the seed of the random number generator. If the user provides the option, the first character of this option will be used. For example, if user’s command is ```./router path_to_net_file.net abc```, then the ASCII code for character ‘a’ will be used. In another word, 0x61 is used s the seed.
+Second argument is optional, which is used to set the seed for random number generator. If the user does not provide this argument, the program will use current time as the seed of the random number generator. If the user provides this argument, the first character of this option will be used. For example, if user’s command is ```./router path_to_net_file.net abc```, then the ASCII code for character ‘a’ will be used. In another word, 0x61 is used as the seed.
 
-If the user gives more than 2 options in the command line, those extra options will be ignored.
+If the user gives more than 2 arguments in the command line, those extra arguments will be ignored.
 
-The program load config from the config file ```config.cfg``` which is in the same directory as the executable file. The config file is used to define the behavior of the program, such as GUI, delay, random factor etc. If the config file is missed or cannot be read by the program, the program will exit and print error information in ```stderr```.
+The program load config from the config file ```config.cfg``` which is in the same directory as the program. The config file is used to define the behavior of the program, such as GUI, delay, random factor etc. If the config file is missed or cannot be read by the program, the program will exit and print error information in ```stderr```.
 
-In the config file, it the ``` gui_path_command``` config is set correctly and not “manual”, the program will call the operating system to open browser to display GUI. No matter the GUI is enabled or disabled or misconfigured, the program will export result file.
+In the config file, if the ``` gui_path_command``` config is set correctly and not “manual”, the program will call the operating system to open web browser to display GUI. No matter the GUI is enabled or disabled or misconfigured, the program always export result file.
 
 ### Step 2 - Generate Empty Map
 
@@ -284,30 +306,34 @@ The second step of the program is to read the net file and generate the empty ma
 A parser (in ```parser.c```) is used to read the input net file. The parser will return a ```Map``` object that contains the empty map.
 
 The parser first read the first line of the input net file.
-- If this line contains two numbers n and m, the parser will create a rectangle map with size n by m.
+- If this line contains two numbers n and m, separated by a "x", the parser will create a rectangle map with size n by m.
 - if this line contains only one number n, the parser will create a square map with size n by n.
 
 After the parser creating the map, the parser begins to search for nets and obstructions line by line.
 - If a line contains only two numbers, these two number are considered x-y position of an obstruction. In this case, the obstruction will be marked on the map. 
 - If a line contains four numbers, the fist two number are considered x-y position for the net source, the last two number are considered x-y position for the net sink. In this case, this net will be assigned an ID (starting from 1) and marked on the map. When marking the map, there is no indication of net sink or source, because electrons can travel in both direction in route; therefore, it is not required to identify the net source and sink.
+
+For the netsfile, comments are not allowed. Number in comments may misleading the parser.
+
 The parser also counts for the number of nets, and return the net count to main program by reference.
 
 The following graph shows an empty map:
-TODO #####################################################
+
+<img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/emptymap.jpg" alt="Empty map Init map" width="300px">
 
 ### Step 3 - Router
 
-Now, it is time to route the nets on the maze map. However, before the router begins work, the program will shuffle the net list. In another word, the order of placing net will be different in each try. There is a very small chance that the order remains the same after shuffle due to the random number generator behavior.
+Now, it is time to route the nets on the maze map. However, before the router begins work, the program will shuffle the net list. In another word, the order of placing nets will be different in each try.
 
-The shuffle is done by using a random number, the random factor ```priority_random_index``` can be set in the config file. Set this value to 0 will disable it.
+The shuffle is done by using a random number, the random factor ```priority_random_index``` can be set in the config file. Set this value to 0 will disable it. There is a very small chance that the order remains the same after shuffle due to the random number generator behavior.
 
-Then, the program will call the router method to route the maze map, one net at a time. If the router can successfully route all nets, the program will export that map as the solution and quit. If the router cannot place all nets, the program will retry for several times until the retry limit is hit or the router successfully placed all the nets. If the retry limit is hit, the program will export the result which placed most of the nets.
+Then, the program will call the router method to route the maze map, one net at a time. If the router can successfully route all nets, the program will export that map as the solution and quit. If the router cannot place all nets, the program will retry for several times until the retry limit is hit or the router successfully placed all the nets. If the retry limit is hit, the program will export the result which placed most of the nets. The retry limit is determine by both the nets count and the ```max_retry_index``` in the config file.
 
 When the program retries, the program will shuffle the net list, and:
 - If the first net cannot be placed (for example, the source or net is separated by obstruction), the fist net to place in next try will be a random net.
 - Otherwise, the fist net to place in the next try will be the fail net of last try, because that net is the most difficult one to place.
 
-The reason of shuffling the net list is to find a relatively good order of placing maximum amount of net. Assume there is 5 nets, net 2 go from the most top to most bottom; net 3 go from most left to most right. In another word, net 2 and net 3 will interlock each other’s. Although there is some better algorithm to find the good order, such as recursive walking; using random number is the most simple and computational-friendly way.
+The reason of shuffling the net list is to find a relatively good order of placing maximum amount of net. Assume there is 5 nets, net 2 go from the most top to most bottom; net 3 go from most left to most right. In another word, net 2 and net 3 will interlock each other. Although there is some better algorithm to find the good order, such as recursive walking; using random number is the most simple way.
 
 | Try | Placement order | Comment |
 | --- | --- | --- |
@@ -320,8 +346,6 @@ The reason of shuffling the net list is to find a relatively good order of placi
 
 Try X placed maximum amount of nets, using Try X as result.
 
-The max retry limit is determine by both the nets count and the ```max_retry_index``` in the config file.
-
 ## GUI
 
 ### GUI
@@ -330,15 +354,15 @@ The GUI interface is an HTML file ```gui.html```.
 
 As describe in ``` Implementation --> Program Architecture``` section, the front-end GUI of this program is a webpage. The back-end router program will route the net and generate map file; the front-end GUI will read the map file and display it on screen.
 
-However, the front-end/back-end architecture brings a critical issue. The GUI is running in web browser, which means the GUI is running in a sandbox. The GUI may read file, but it cannot write file. In another word, the back-end router GUI and the front-end GUI are communicating in a single-way link. The issue is that, the GUI cannot send signal to the router; therefore, the router may modify the result file while the GUI is reading it. 
+However, the front-end/back-end architecture brings a critical issue. The GUI is running in web browser, which means the GUI is running in a sandbox. The GUI may read file, but it cannot write file. In another word, the back-end router GUI and the front-end GUI are communicating in a one-way link. The issue is that, the GUI cannot send signal to the router; therefore, the router may modify the result file while the GUI is reading it. 
 
 The original solution is to have a JavaScript checker on the front-side. Every time when the front-end GUI reading the result file, the checker will first check the integrity of the result file. If this file is not modified by the back-end router during reading, the result will be displayed; if it is modified, the checker discards it.
 
-This solution works fine few years ago, when CORS in Firefox is not strict as today (At that time, there was CORS, but Firefox allows local HTML files to read file in the same directory or subdirectories). However, nowadays, this solution is no longer available due to security reason. If a JavaScript program can read a file from local file system, it can send the local file to a remote server. This means, if a user downloads an HTML file, critical information saved in downloading directory can be stolen (for example, a user may have a key file downloaded from another website). Therefore, the checker solution will not work.
+This solution works fine few years ago, when CORS in Firefox is not strict as today (At that time, there was CORS, but Firefox allows JavaScript program in local HTML file to read files in the same directory or subdirectories). However, nowadays, this solution is no longer available due to security reason. If a JavaScript program can read a file from local file system, it can send the local file to a remote server. This means, if a user downloads and runs an HTML file, critical information saved in downloading directory can be stolen (for example, a user may have a key file downloaded from another website). Therefore, the checker solution will not work.
 
-To accompany with the CORS policy, the only solution is to create a local web server on the user’s machine so an HTTP ```Access-Control-Allow-Origin``` can be send with the GUI file. However, it is not worth to pack such a complex web server with the program.
+To accompany with the CORS policy, the only solution is to create a local web server on the user’s machine so an HTTP ```Access-Control-Allow-Origin``` can be send with the result file. However, it is not worth to pack such a complex web server with the program.
 
-The final solution is to let the back-end router to export the result as a table in HTML file and let the front-end GUI to use a ```<iframe>``` tag to embed the result HTML file.
+The final solution is to let the back-end router to export the result as a ```<table>``` in HTML file and let the front-end GUI to use a ```<iframe>``` tag to embed the result HTML file.
 
 In this architecture, the result file can be embedded in the GUI directly by the DOM. There is no JavaScript program involved in this process; therefore, the CORS rule is not breached. To do this, the back-end router needs to export the result as a displayable HTML file so it can be directly displayed. This method is saved in ```map2html.c```.
 
@@ -349,19 +373,16 @@ However, there is still chance of write-while-read. In this case, the result fil
 
 Generally speaking, the back-end router is extremely fast. To illustrate the progress of the router, the router has to implement a delay function at each step; otherwise, the result will be found instantly.
 
-By default, the back-end router exports the result at a rate of around 2.5 results per second. If the map size is large, the rate my drop a little bit. The can be changed by editing the ``` gui_delay ```  config.
+By default, the back-end router exports the result at a rate of around 2.5 results per second. In acother word, paue for 400 miniseconds every times. If the map size is large, the rate my drop a little bit. The rate can be changed by editing the ``` gui_delay ``` config.
 
-The front-end GUI is constantly polling the result file. To ensure the front-end GUI polls all the progress, the rate of polling should be equal or higher to double of the rate of back-end GUI (according to the Nyquist theorem). By default, the rate is 5 sampling per second.
+The front-end GUI is constantly polling the result file. To ensure the front-end GUI polls all the progress, the rate of polling should be equal or higher to double of the rate of back-end GUI (according to the Nyquist theorem). By default, the rate is 5 sampling per second (sample every 200 miniseconds).
 
-If the user wants to modify the sampling rate of the front-end GUI, the user has to modify the ```gui.html``` file. In this file, modify the value of ```refresh```:
+If the user wants to modify the sampling rate of the front-end GUI, the user needs to modify the ```gui.html``` file. In this file, modify the value of ```refresh```:
 ```html
 refresh = 200; //Modify this line if gui_delay in config.cfg is smaller than 400
-
 setInterval( () => {
-
 document.getElementById("maploader1").src += '';
-
 },refresh);
 ```
 
-On some low-performance machine, user may experience heave lag in the GUI. In this case, the user should slow down both rates.
+On some low-performance machine, user may experience heavy lag in the GUI. In this case, the user should slow down both rates.
