@@ -386,3 +386,112 @@ document.getElementById("maploader1").src += '';
 ```
 
 On some low-performance machine, user may experience heavy lag in the GUI. In this case, the user should slow down both rates.
+
+# Testbench
+
+## File1
+
+The first test file conatins a 15-by-15 maze map, with 22 obstructions and 4 nets to route.
+```
+15
+
+obstruction 3 12
+obstruction 3 11
+obstruction 3 10
+obstruction 3 3
+obstruction 3 4
+obstruction 3 5
+obstruction 3 6
+obstruction 4 6
+obstruction 5 6
+obstruction 9 10
+obstruction 10 10
+obstruction 11 10
+obstruction 11 9
+obstruction 11 8
+obstruction 6 2
+obstruction 7 2
+obstruction 8 2
+obstruction 8 5
+obstruction 9 5
+obstruction 10 5
+obstruction 11 5
+obstruction 12 5
+
+net 3 12 12 5
+net 3 6 10 10
+net 8 5 8 2
+net 3 3 3 10
+```
+
+This is how the map looks like before placement:
+
+<img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/1_init.png" alt="Empty map Test 1" width="600px">
+
+The program successfully place all nets:
+
+<img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/1_final.png" alt="Empty map Test 1" width="600px">
+
+## File2
+
+The maze in the second test file is also 15 by 15; however, this one comes with 38 obsturctions and 6 nets to route.
+```
+15
+
+obstruction 0 9
+obstruction 1 9
+obstruction 2 9
+obstruction 2 3
+obstruction 2 4
+obstruction 2 5
+obstruction 3 3
+obstruction 3 4
+obstruction 3 5
+obstruction 5 13
+obstruction 6 13
+obstruction 7 13
+obstruction 8 13
+obstruction 6 8
+obstruction 7 8
+obstruction 8 8
+obstruction 6 9 
+obstruction 7 9
+obstruction 8 9
+obstruction 6 10
+obstruction 7 10
+obstruction 8 10
+obstruction 6 1
+obstruction 7 1
+obstruction 10 3
+obstruction 11 3
+obstruction 12 3
+obstruction 10 4
+obstruction 11 4
+obstruction 12 4
+obstruction 10 5
+obstruction 11 5
+obstruction 12 5
+obstruction 12 8
+obstruction 12 9
+obstruction 12 10
+obstruction 12 11
+obstruction 12 12
+
+net 3 3 10 4
+net 7 1 7 13
+net 2 9 10 5
+net 3 4 10 3
+net 2 5 6 1
+net 12 8 12 12
+```
+
+This is how the map looks like before placement:
+
+<img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/2_init.png" alt="Empty map Test 2" width="600px">
+
+By analysis this maze, it is clear to say that, it is impossible to place all nets on this map. Looking on the top-left obstrcution and top-right obstruction, if net 1 and 4 is placed at the beginning, one end of net 5 or net 3 will be enclosed.
+
+Now, run the program. The program cannot place all nets, so it retries. After 12 itreations, the program gives up and returns the best result it can found:
+
+<img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/2_final.png" alt="Empty map Test 2" width="600px">
+
