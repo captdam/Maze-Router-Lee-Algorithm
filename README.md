@@ -1,3 +1,7 @@
+```diff
+- This repo was used for my school project. It is deactived because I have finished that course.
+```
+
 # Maze Router: Lee Algorithm
 
  The Lee Algorithm is a routing algorithm used to find shortest route from one point to another point in a maze. In VLSI and FPGA design, the Lee Algorithm guarantee to find the shortest path for a single net if it exists, but the cost of this algorithm is quite high.
