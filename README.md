@@ -111,9 +111,13 @@ When the user executes the program with GUI enabled, the program will first open
 
 ## Data Structure
 
+The old terminology ```slot``` is replaced by a more precise terminology ```tile``` in this document, but the old term is still used in the code.
+
+The old terminology ```wave``` is replaced by a more precise terminology ```propagate``` in this document, but the old term is still used in the code.
+
 ### Map-object Structure
 
-Although C is not an object-orientation programming language, object-orientation programming can be manually achieved. In this program, a ```Map``` object is used to represent the maze map. The ```Map``` structures contains three elements, the height of the map, the width of the map, and the slots of the map. The structure of ```Map``` object is given below:
+Although C is not an object-orientation programming language, object-orientation programming can be manually achieved. In this program, a ```Map``` object is used to represent the maze map. The ```Map``` structures contains three elements, the height of the map, the width of the map, and the tiles of the map. The structure of ```Map``` object is given below:
 ```C
 typedef struct Map {
 	mapaddr_t width;
@@ -122,25 +126,22 @@ typedef struct Map {
 } Map;
 ```
 
-The map width and height are of type ```mapaddr_t``` and the slots are of type ```mapdata_t```. User can define the type ```mapaddr_t``` and ```mapdata_t``` when compile the program to fit their own requirement.
+The map width and height are of type ```mapaddr_t``` and the tiles are of type ```mapdata_t```. User can define the type ```mapaddr_t``` and ```mapdata_t``` when compile the program to fit their own need.
 
-Type ```mapaddr_t``` is used to describe the x-y position of the map slots. When define the data type, user can use ```unsigned short int```, ```unsigned int```, ```unsigned long int``` or ```unsigned long long int```. This data type should be big enough to describe the x-y position of any slot in the map. It is recommended to use ```unsigned long long int```, because this is the safeties data type, and this attribute has minor impact on performance and memory consumption.
-```
-2 ^ bit_length( mapaddr_t ) >= count( map_size )
-```
+Type ```mapaddr_t``` is used to describe the x-y coordinates of the map tiles. When define the data type, user can use ```unsigned short int```, ```unsigned int``` or ```unsigned long long int```. This data type should be big enough to describe the x-y coordinates of any tile in the map. A ```unsigned int``` or ```uint32_t``` should be good enough since most map should be less than 4G * 4G.
 
-Type ```mapdata_t``` is used to describe the content of each map slot. This includes “free”, “obstruction”, “wave”, and the ID of net using this slot. When define the data type, user can use ```unsigned short int```, ```unsigned int```, ```unsigned long int``` or ```unsigned long long int```. The length of this data type should be greater than twice of the map size or the amount of net, which is greater. User should be caution when define the data type. If this data type is too large, it consumes a lot of memory; if it is too small, it will overflow.
+Type ```mapdata_t``` is used to describe the state of each map tile. This includes “free”, “obstruction”, propagate, and the ID of net using this tile. When define the data type, user can use ```unsigned short int```, ```unsigned int``` or ```unsigned long long int```. The bit length of this data type should be greater than twice of the map size or the amount of net, which is greater. User should be caution when define the data type. If this data type is too large, it consumes a lot of memory; if it is too small, it may overflow.
 ```
 2 ^ bit_length( mapdata_t ) >= 2 * max( count( map_size ) , count( nets_size ) )
 ```
 
-For the structure ```Map```, its child ```map``` is used to represent the slots of the map. ```map``` is a 1-D array, the index of the array is used to represent the x-y position of that slot. For example, to ```map[ y * Map.width + x ]``` is used to access the slot at ```(x,y)```.
+For the structure ```Map```, its child ```map``` is used to represent the tiles of the map. ```map``` is a array (logical 2D array, but use 1D array pointer), the index of the array is used to represent the x-y position of that tile. For example, to ```map[ y * Map.width + x ]``` is used to access the tile at ```(x,y)```.
 
-Each slot can be one of the following types:
-- Free. Which means this slot is free to use for any net. All bits will be zero in this case.
-- Wave. This is used when finding the shortest path from net source to net drain using the Lee algorithm. In this case, the first bit (MSB) will be zero, and the remaining bits represent the distance of that slot from the net source.
-- Obstruction. Which means this slot can not be used for any purpose. In this case, the first bit (MSB) will be one, and the remaining bits are all zero.
-- Used by net. This means the slot is occupied by a net. In this case, the first bit (MSB) will be one, and the remaining bits represent the net ID.
+Each tile can be one of the following states:
+- Free. Which means this tile is free to use for any net. All bits will be zero in this case.
+- Propagate. This is used when finding the shortest path from net source to net drain using the Lee algorithm. In this case, the first bit (MSB) will be zero, and the remaining bits represent the distance of that tile from the net source.
+- Obstruction. Which means this tile can not be used for any purpose. In this case, the first bit (MSB) will be one, and the remaining bits are all zero.
+- Used by net. This means the tile is occupied by a net. In this case, the first bit (MSB) will be one, and the remaining bits represent the net ID.
 
 An ```emun``` is used to describe those 4 situations:
 ```C
@@ -150,6 +151,7 @@ typedef enum mapslot_type {
 	mapslot_obstruction,
 	mapslot_net
 } mapslot_type;
+/*slot should be tile*/
 ```
 
 ### Map-object Method
@@ -161,38 +163,38 @@ return_type method_name (struct object_type* object_name, params…) {…}
 
 In this program, there are two constructors defined for the ```Map``` object in ```map.c```. These constructors will ask the system to allocate memory to hold the maze map and return a ```Map``` object.
 ```C
-Map createMap(mapaddr_t width, mapaddr_t height);	//To create an empty map, all slots in this map are empty (not used)
+Map createMap(mapaddr_t width, mapaddr_t height);	//To create an empty map, all tiles in this map are empty (not used)
 Map copyMapAsNew(Map srcMap);				//To create a map exactly like the given map
 ```
 
 Because the program manually allocates (using ```malloc``` or ```calloc```) memory, a destructor is required to release the memory if a ```Map``` is no longer required. Otherwise, the program will suffer from memory leak issue.
 ```C
-void destroyMap(Map targetMap); //Destroy a map, release the map slot memory space
+void destroyMap(Map targetMap); //Destroy a map, release the map tile memory space
 ```
 
-The map object has a setter and a getter method used to set or get the value at any slot of the map according to its x-y position. These two methods are designed to be used internally; in another word, these are private functions, because the return value is raw unsigned number. There are two major reasons:
+The map object has a setter and a getter method used to set or get the value at any tile of the map according to its x-y position. These two methods are designed to be used internally; in another word, these are private functions, because the return value is raw unsigned number. There are two major reasons:
 - The main program should interactive with the ```Map``` object at an abstract level. The main program does not understand how to process those raw number, and the main program does not need to understand it.
-- If there is any change of the representation of the map slot, the code in main program must be changed as well. This is extremely time-consuming and error-prone.
+- If there is any change of the representation of the map tile, the code in main program must be changed as well. This is extremely time-consuming and error-prone.
 ```C
-mapdata_t getMapValueAt(Map readMap, mapaddr_t x, mapaddr_t y);			//Get the content of a slot in the map, using x-y position
-void setMapValueAt(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t value);	//Set the content of a slot in the map, using x-y position
+mapdata_t getMapValueAt(Map readMap, mapaddr_t x, mapaddr_t y);			//Get the content of a tile in the map, using x-y position
+void setMapValueAt(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t value);	//Set the content of a tile in the map, using x-y position
 ```
 
-There are some methods that are designed for main program to interact with the ```Map``` object. One thing needs to mention is, although these methods accept the ```Map``` object by value, the ```Map``` object contains a pointer to the map slots. Therefore, the map slots are pass by reference in fact. Modify the map slots inside method affect the map slots outside of the method.
+There are some methods that are designed for main program to interact with the ```Map``` object. One thing needs to mention is, although these methods accept the ```Map``` object by value, the ```Map``` object contains a pointer to the map tiles. Therefore, the map tiles are pass by reference in fact. Modify the map tiles inside method affect the map tiles outside of the method.
 ```C
 void copyMapM2M(Map destMap, Map srcMap);						//To copy the content of one map to another, without create a new one, map should be same size
-void setMapSlotObstruction(Map writeMap, mapaddr_t x, mapaddr_t y);			//Set a slot to be obstruction
-void setMapSlotUsedByNet(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t netID);	//Set a slot to be used by a net
-void setMapSlotWave(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t wave);		//by wave (distance)
+void setMapSlotObstruction(Map writeMap, mapaddr_t x, mapaddr_t y);			//Set a tile to be obstruction
+void setMapSlotUsedByNet(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t netID);	//Set a tile to be used by a net
+void setMapSlotWave(Map writeMap, mapaddr_t x, mapaddr_t y, mapdata_t wave);		//by propagate (distance)
 void setMapSlotFree(Map writeMap, mapaddr_t x, mapaddr_t y);				//free
-mapslot_type getMapSlotType(Map checkMap, mapaddr_t x, mapaddr_t y);			//Get map slot attribute (free, wave, obstruction, used by net)
-mapdata_t getMapSlotValue(Map checkMap, mapaddr_t x, mapaddr_t y);			//After check the map slot type, get the value of it, either netID or wave, or 0 for free/obstruction
-void cleanMap(Map map);									//Clean a map, remove all waves
+mapslot_type getMapSlotType(Map checkMap, mapaddr_t x, mapaddr_t y);			//Get map tile state (free, wave, obstruction, used by net)
+mapdata_t getMapSlotValue(Map checkMap, mapaddr_t x, mapaddr_t y);			//After check the map tile type, get the value of it, either netID or propagate distance, or 0 for free/obstruction
+void cleanMap(Map map);									//Clean a map, remove all propagates
 ```
 
 ### Map-object Neighbor Wrap Method
 
-In the Lee Algorithm, there are lot of operation that requiring the accessing of 4 neighborhood slots of a given slot. Therefore, the ```Map``` object provides a wrap method which accept another custom method. In this wrap method, the wrap method will apply the custom method to all 4 neighborhood slots of the given slot. To pass and retrieve data between the main function and the custom method, the wrap method accepts a pointer to a custom structure. Furthermore, the wrap method check for boundary as well. For example, if the given slot's x position is 0, the wrap will not apply the custom function to its left neighbor.
+In the Lee Algorithm, there are lot of operation that requiring the accessing of 4 neighborhood tiles of a given tile. Therefore, the ```Map``` object provides a wrap method which accept another custom method. In this wrap method, the wrap method will apply the custom method to all 4 neighborhood tiles of the given tile. To pass and retrieve data between the main function and the custom method, the wrap method accepts a pointer to a custom structure. Furthermore, the wrap method check for boundary as well. For example, if the given tile's x position is 0, the wrap will not apply the custom function to its left neighbor.
 ```C
 void applyNeighbor(Map map, mapaddr_t selfX, mapaddr_t selfY, void (*function)(), void *functionData);
 ```
@@ -217,7 +219,7 @@ if (dataXch.data2) { //Using the data retrieved from the custom method
 }
 ```
 
-The wrap also comes with a random factor. In this wrap method, the wrap applies the custom method on all 4 neighbor slots. However, if there is any conflict, the result comes from the last or first applied slot will win. Sometime, this may lead to a poor result. Consider the following situation:
+The wrap also comes with a random factor. In this wrap method, the wrap applies the custom method on all 4 neighbor tiles. However, if there is any conflict, the result comes from the last or first applied tile will win. Sometime, this may lead to a poor result. Consider the following situation:
 
 <img src="https://raw.githubusercontent.com/captdam/Maze-Router-Lee-Algorithm/master/docs/randompath_x.jpg" alt="Fail without random" width="300px">
 
@@ -242,48 +244,48 @@ The router method accepts two parameters, the map and the net ID.
 
 For each net, there is one source and one sink. The router will scan the entire map and find the x-y positions for both net source and sink according to the net ID paramter.
 
-### Step 2 - Waveing
+### Step 2 - Propagating
 
-Starting from the net source, the router begins to propagate wave. All unmarked (free) map slots near (connected by edge, but not corner) the source will be marked “wave 1”, all unmarked map slots near “wave 1” will be marked as “wave 2”, and so on. The process will continue until the net sink is reached, or no more map slots can be marked.
+Starting from the net source, the router begins to propagate. All unmarked (free) map tiles near (connected by edge, but not corner) the source will be marked "propagate 1”, all unmarked map slots near “propagate 1” will be marked as “propagate 2”, and so on. The process will continue until the net sink is reached, or no more map slots can be marked.
 ```
 run = 0;
-markedSlots = [source];
+markedTiles = [source];
 repeat {
 	run++;
-	markedSlots = markedSlots.neighbor;
-	foreach (markedSlots)
-		markOnMap(markedSlots.elements,run);
-} until( markedSlots.count == 0 || markedSlots.includes(sink) );
+	markedTiles = markedTiles.neighbor;
+	foreach (markedTiles)
+		markOnMap(markedTiles.elements,run);
+} until( markedTiles.count == 0 || markedTiles.includes(sink) );
 ```
 
-This method requires query, or flex-length array to story marked slots in each run. It is easy to implement in high-level language such as JavaScript, Java or Python; however, in C, there is no such flex data structure. There are few solutions:
+This method requires query, or flex-length array to story marked tiles in each run. It is easy to implement in high-level language such as JavaScript, Java or Python; however, in C, there is no such flex data structure. There are few solutions:
 - Using fixed-length very big array. This solution consumes a lot of memory. The term “very big” may not be big enough.
 - Using linked list. Hard to program, easy to have memory leak.
 
-Therefore, instead of finding neighbor of marked slots (by using marked slots position), the program finds slots that are neighbor of marked slots (by fully scan the map).
+Therefore, instead of finding neighbor of marked tiles (by using marked tiles position), the program finds tiles that are neighbor of marked tiles (by fully scan the map).
 ```
 repeat {
 	markCount = 0;
-	foreach(mapSlots) {
-		if (mapSlots.element is source.neighbor) {
-			markOnMap(mapSlots.element,1);
+	foreach(mapTiles) {
+		if (mapTiles.element is source.neighbor) {
+			markOnMap(mapTiles.element,1);
 			markCount++;
 		}
-		else if (mapSlots.element is markedSlots.element.neighbor) {
-			markOnMap(mapSlots.element, markedSlots.element.value + 1);
+		else if (mapTiles.element is markedTiles.element.neighbor) {
+			markOnMap(mapTiles.element, markedTiles.element.value + 1);
 			markCount++;
 		}
 	}
 } until (markCount == 0 || sink.is_marked);
 ```
 
-The second method requires to scan the entire map in each run, but the first method only access those slots modified by last run and their neighbor. In another word, the first method accesses less slots than the second method in each run. Especially in the first run, the first method only access 4 slots (neighbor of source), but the second method accesses all slots in the map.
+The second method requires to scan the entire map in each run, but the first method (the queue/linked list method) only access those tiles modified by last run and their neighbor. In another word, the first method accesses less tiles than the second method in each run. Especially in the first run, the first method only access 4 tiles (neighbor of source), but the second method accesses all tiles in the map.
 
-However, when the map is crowd, the slots accessed by first method will be just slightly less than the second method. In fact, flex-length array (such as linked list and hash map) has overhead. Assume the program is using linked list to implement the query. When reading the array, the CPU needs to read the ```next``` pointer, then go to fetch the value by pointer. After each run, the program needs to walk through the linked list to destroy (release memory of) the array. Furthermore, linked list is usually saved in HEAP across different memory sectors, which means higher cache miss rate. For the second method, the CPU reads the value and increases the pointer by one (in fact, some CPU can increase pointer and read value in one cycle). The map is saved in HEAP but in same sector, which means higher cache hit rate.
+However, when the map is crowd, the tiles accessed by first method will be just slightly less than the second method. In fact, flex-length array (such as linked list and hash map) has overhead. Assume the program is using linked list to implement the queue. When reading the array, the CPU needs to read the ```next``` pointer, then go to fetch the value by pointer. After each run, the program needs to walk through the linked list to destroy (release memory of) the array. Furthermore, linked list is usually saved in HEAP across different memory sectors, which means higher cache miss rate. For the second method, the CPU only need to perform a read and a pointer register increase operation. (In fact, some CPUs can increase pointer and read value in one cycle, e.g. ```LD Rd, Z+``` in AVR). The map is saved in HEAP but all in one continuous space, which means higher cache hit rate.
 
 ### Step 3 - Tracing Back
 
-After the wave reaches the net sink, the program begins to trace back from the sink to the source to establish the route. When doing this, there may be multiple possible shortest routes, all of them has the same length. In this case, the program uses a random number to determine which path to use. Refer to the ``` Implementation --> Data Structure --> Map-object Neighbor Wrap Method``` section.
+After the propagate reaches the net sink, the program begins to trace back from the sink to the source to establish the route. When doing this, there may be multiple possible shortest routes, all of them has the same length. In this case, the program uses a random number to determine which path to use. Refer to the ``` Implementation --> Data Structure --> Map-object Neighbor Wrap Method``` section.
 
 ## Main Program (Back-end Router)
 
